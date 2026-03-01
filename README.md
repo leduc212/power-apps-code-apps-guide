@@ -227,9 +227,16 @@ Connections must exist in the Power Apps maker portal before you can reference t
 2. `pac connection list` to get the connection ID and API name
 3. `pac code add-data-source -a <apiName> -c <connectionId>`
 
-### 13. Hosted app code is publicly accessible
+### 13. Your compiled JS bundle is readable — keep secrets out of client code
 
-When you push with `npx power-apps push`, the compiled bundle is hosted on a publicly accessible endpoint. Do not embed secrets, API keys, or sensitive data in your app code. All sensitive operations should go through connectors (which enforce DLP and authentication server-side).
+**Playing** the app (`apps.powerapps.com/play/...`) requires Entra authentication — users who aren't shared the app can't open it. That part is protected.
+
+However, the compiled JavaScript bundle that the browser downloads is hosted on a publicly accessible CDN endpoint. Someone who discovers the asset URL can download and inspect your JS (minified, but readable). This is standard behavior for any SPA — the same is true of React apps hosted on Azure Static Web Apps, Vercel, or Netlify.
+
+The practical rule: **do not put API keys, secrets, passwords, or sensitive business logic in your front-end code.** All data access should go through connectors, which are authenticated and DLP-enforced server-side. The data itself is safe — only the compiled code is exposed.
+
+This is what the [official docs](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/system-limits-configuration) say:
+> *"Sensitive user or organizational data shouldn't be stored in the app. Store this kind of data in a data source so the content is retrieved after end-users playing the app go through authentication and authorization checks."*
 
 ### 14. Two CLIs exist — the npm CLI is replacing `pac code`
 
@@ -303,7 +310,7 @@ From the [Microsoft Learn docs](https://learn.microsoft.com/en-us/power-apps/dev
 | **No schema refresh command** | Schema changes on a connector require delete + re-add of the data source. |
 | **No connection creation via CLI** | Connections must be created first in the maker portal; CLI can only reference existing ones. |
 | **Excel Online not yet supported** | Excel Online (Business) and Excel Online (OneDrive) connectors are excluded. |
-| **Hosted bundle is public** | The compiled app code is on a publicly accessible endpoint. No secrets in app code. |
+| **Compiled JS bundle is readable** | The app play URL requires auth, but the underlying JS asset bundle is on a publicly accessible CDN (standard SPA behavior). No API keys or secrets in client code — use connectors for all data access. |
 | **Browser local network access** | Chrome/Edge block localhost requests from public origins since Dec 2025. Users must grant permission on first local dev session. |
 | **Premium license required** | Every end-user needs Power Apps Premium. No per-app licensing path. |
 | **Sharing limits** | Follows Canvas App managed environment sharing limits. |
