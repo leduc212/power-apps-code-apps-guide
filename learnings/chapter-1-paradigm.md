@@ -64,7 +64,7 @@ The most important thing to understand is what you **don't** have to build:
 | ALM | Push to solutions, deploy with Power Platform Pipelines |
 | Licensing | End-users need Power Apps Premium |
 
-This is the core value proposition: **you write the UI and logic, Power Platform handles the rest.**
+The deal is straightforward: **you write the UI and logic, Power Platform handles the rest.**
 
 ### The Architecture in Three Layers
 

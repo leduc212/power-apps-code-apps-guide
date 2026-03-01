@@ -18,7 +18,7 @@ By the end, the app will have a working Accounts screen that reads live data fro
 
 ## How Dataverse Integration Works
 
-Before running any commands, the mental model is worth understanding.
+Before running any commands, it helps to understand the mental model.
 
 When you work with Dataverse in Canvas App, you add a data source through the UI and Power Fx handles the query syntax. In Model-Driven App, you configure views and forms and the platform fetches data for you.
 
@@ -95,11 +95,11 @@ export interface Accounts {
 
 This is a direct reflection of your Dataverse table columns with TypeScript types. Nullable columns are typed as `T | null`. Read-only system columns like `ownerid` and `createdon` are included.
 
-**Gotcha — option set types do not match runtime values:** Fields like `statecode` are typed as `string` in the generated model, but the SDK actually returns them as `number` at runtime. This creates a lose-lose situation: comparing `statecode === 0` gives a TypeScript compile error (*"types 'string' and 'number' have no overlap"*), but comparing `statecode === "0"` compiles cleanly yet always evaluates to `false` at runtime because the value is actually `0`, not `"0"`.
+**Gotcha: option set types do not match runtime values.** Fields like `statecode` are typed as `string` in the generated model, but the SDK actually returns them as `number` at runtime. This creates a lose-lose situation: comparing `statecode === 0` gives a TypeScript compile error (*"types 'string' and 'number' have no overlap"*), but comparing `statecode === "0"` compiles cleanly yet always evaluates to `false` at runtime because the value is actually `0`, not `"0"`.
 
-The safe fix is to coerce with `Number()` before comparing — `Number(account.statecode) === 0`. This satisfies TypeScript and works regardless of whether the value comes back as a string or a number.
+The safe fix is to coerce with `Number()` before comparing: `Number(account.statecode) === 0`. This satisfies TypeScript and works regardless of whether the value comes back as a string or a number.
 
-The SDK generates a companion `*name` field for every option set (e.g., `statecodename`) that appears in the model as optional. However, **do not include these `*name` fields in your `select` array** — they are not real Dataverse columns. They are formatted value annotations that Dataverse attaches to the response alongside the base field, and requesting them explicitly will result in a 400 error: *"Could not find a property named 'statecodename'."* Map option set values to labels manually in your component instead.
+The SDK generates a companion `*name` field for every option set (e.g., `statecodename`) that appears in the model as optional. However, **do not include these `*name` fields in your `select` array**. They are not real Dataverse columns. They are formatted value annotations that Dataverse attaches to the response alongside the base field, and requesting them explicitly will result in a 400 error: *"Could not find a property named 'statecodename'."* Map option set values to labels manually in your component instead.
 
 The model tells you exactly what data is available and TypeScript will warn you if you try to access a field that does not exist on the table.
 
@@ -234,7 +234,7 @@ export default function AccountsPage() {
 }
 ```
 
-A few things worth explaining in this component:
+A few things in this component that need some explanation:
 
 **`useDeferredValue` instead of debounce**
 
@@ -377,7 +377,7 @@ This is why there is no auth code, no API keys, and no CORS configuration in the
 - The model file is a TypeScript interface matching your Dataverse table schema - nullable columns are typed as `T | null`
 - The service file exposes `getAll`, `get`, `create`, `update`, `delete` - each returning a Promise
 - Always use the `select` option in `getAll` to limit columns
-- Option set fields like `statecode` are typed as `string` in the generated model but return as `number` at runtime — use `Number(account.statecode) === 0` to safely handle both
+- Option set fields like `statecode` are typed as `string` in the generated model but return as `number` at runtime. Use `Number(account.statecode) === 0` to safely handle both
 - The SDK generates `*name` companion fields in the model (e.g., `statecodename`) but do NOT put them in `select` - they are Dataverse annotations, not real columns, and will cause a 400 error if selected explicitly
 - The `filter` option accepts standard OData v4 expressions - the same syntax as the Dataverse Web API
 - Use Tanstack Query's `useQuery` to wrap service calls - you get caching, loading states, and error handling for free

@@ -250,7 +250,7 @@ From there you can share it with other users the same way you share any Power Ap
 
 ## What Just Happened (Under the Hood)
 
-Let us connect what we did to the architecture from Chapter 1:
+To connect what we did to the architecture from Chapter 1:
 
 ```
 npm run dev          -> starts Vite on port 5173
@@ -295,7 +295,7 @@ Same result, slightly cleaner mental model since you can see each step separatel
 
 ## What the Starter Template Gives You
 
-Worth pausing to appreciate what the template set up, because you will build on top of all of it:
+Here is what the template set up. You will build on top of all of it:
 
 | Library | Role |
 |---|---|

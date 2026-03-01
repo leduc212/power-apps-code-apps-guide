@@ -2,7 +2,7 @@
 
 > **Blog post title:** CRM CRUD in Power Apps Code Apps: Gotchas with Lookups, Option Sets, and Required Fields
 >
-> **Audience:** Following along from Chapter 3. You have an Accounts list reading live Dataverse data. Now we go deeper — fetching related records, creating, and deleting.
+> **Audience:** Following along from Chapter 3. You have an Accounts list reading live Dataverse data. Now we go deeper: fetching related records, creating, and deleting.
 
 ---
 
@@ -17,7 +17,7 @@ Chapter 4 builds all of that. By the end we have:
 - Delete on each Opportunity row
 - Clickable rows in the Accounts list that navigate to the detail page
 
-Along the way, we hit the real nuances of CRUD against Dataverse — the ones that a generated service layer does not abstract away for you.
+Along the way, we hit the real nuances of CRUD against Dataverse, the ones a generated service layer does not abstract away for you.
 
 ---
 
@@ -76,7 +76,7 @@ const { accountId } = useParams<{ accountId: string }>()
 
 ### Fetching Three Things at Once
 
-The detail page needs three separate queries running in parallel: the account itself, its related opportunities, and its related contacts. Tanstack Query handles parallel queries naturally — just declare multiple `useQuery` calls and they fire simultaneously:
+The detail page needs three separate queries running in parallel: the account itself, its related opportunities, and its related contacts. Tanstack Query handles this naturally. Just declare multiple `useQuery` calls and they fire simultaneously:
 
 ```tsx
 const { data: account } = useQuery({
@@ -115,7 +115,7 @@ const { data: contacts = [] } = useQuery({
 })
 ```
 
-**`enabled: !!accountId`** — this tells Tanstack Query not to fire the query until `accountId` has a value. Without it, the query would run immediately on mount with `accountId` as `undefined`, which would produce a bad API call.
+**`enabled: !!accountId`** tells Tanstack Query not to fire the query until `accountId` has a value. Without it, the query would run immediately on mount with `accountId` as `undefined`, which would produce a bad API call.
 
 ### Filtering Related Records
 
@@ -126,7 +126,7 @@ _parentaccountid_value eq ${accountId}   ← opportunities linked to this accoun
 _accountid_value eq ${accountId}          ← contacts linked to this account
 ```
 
-These `_*_value` fields are the read-only GUID fields that Dataverse stores for each lookup relationship. They are what you filter on — not the navigation property name.
+These `_*_value` fields are the read-only GUID fields that Dataverse stores for each lookup relationship. They are what you filter on, not the navigation property name.
 
 ### Option Set Mapping
 
@@ -162,7 +162,7 @@ createOpportunity.mutate()
 disabled={createOpportunity.isPending}
 ```
 
-### Query Invalidation — How the List Refreshes
+### Query Invalidation: How the List Refreshes
 
 After a successful create, you want the Opportunities list to reload and show the new record. The mechanism is **query invalidation**:
 
@@ -177,9 +177,9 @@ queryClient.invalidateQueries({ queryKey: ["opportunities", accountId] })
 
 ### Linking the Opportunity to an Account
 
-When you **read** an opportunity, the related account appears as `_parentaccountid_value` — a plain GUID string. But that field is read-only. You cannot set it directly on create.
+When you **read** an opportunity, the related account appears as `_parentaccountid_value`, a plain GUID string. But that field is read-only. You cannot set it directly on create.
 
-The Opportunity customer field is a **polymorphic lookup** — it can point to either an Account or a Contact. In Dataverse's OData API, polymorphic lookups use a typed bind syntax:
+The Opportunity customer field is a **polymorphic lookup**, meaning it can point to either an Account or a Contact. In Dataverse's OData API, polymorphic lookups use a typed bind syntax:
 
 ```tsx
 "customerid_account@odata.bind": `/accounts(${accountId})`
@@ -197,7 +197,7 @@ Three approaches that look reasonable but **do not work**:
 
 The typed bind is the one that actually works.
 
-### Numeric Fields Are Typed as `string` — But Must Be Sent as Numbers
+### Numeric Fields Are Typed as `string` but Must Be Sent as Numbers
 
 This is the same mismatch we saw with `statecode` in Chapter 3, but it bites harder on create.
 
@@ -212,13 +212,13 @@ If you send `"estimatedvalue": "123"` (a quoted string), Dataverse rejects it:
 
 You must send `"estimatedvalue": 123` (an unquoted number). The fix is `Number(form.estimatedvalue)` before passing it to the service.
 
-The same applies to any currency, decimal, or integer field — always convert with `Number()` before sending on create or update.
+The same applies to any currency, decimal, or integer field. Always convert with `Number()` before sending on create or update.
 
 ### Required Fields and the Type Cast
 
 The `OpportunitiesBase` interface marks several fields as required that Dataverse will actually default server-side (`ownerid`, `owneridtype`, `TransactionCurrencyId@odata.bind`). Combined with the numeric type mismatches above, the generated TypeScript type simply does not match what the API actually needs.
 
-The pragmatic solution is to cast the entire create payload to `as any`. This is not ideal, but it is honest — the generated types are unreliable enough on writes that trying to satisfy them creates more noise than safety:
+The pragmatic solution is to cast the entire create payload to `as any`. This is not ideal, but it is honest. The generated types are unreliable enough on writes that trying to satisfy them creates more noise than safety:
 
 ```tsx
 await OpportunitiesService.create({
@@ -231,11 +231,11 @@ await OpportunitiesService.create({
 } as any)
 ```
 
-The spread syntax (`...(condition && { field: value })`) keeps the payload clean — if `form.estimatedvalue` is an empty string, the spread evaluates to `false` and nothing is added. No empty strings reach the API.
+The spread syntax (`...(condition && { field: value })`) keeps the payload clean. If `form.estimatedvalue` is an empty string, the spread evaluates to `false` and nothing is added. No empty strings reach the API.
 
 ### `customerid` and `customeridtype`
 
-Opportunity has a polymorphic customer field — it can be linked to either an Account or a Contact. The SDK requires you to specify both the ID and the type:
+Opportunity has a polymorphic customer field that can link to either an Account or a Contact. The SDK requires you to specify both the ID and the type:
 
 ```tsx
 customerid: accountId,
@@ -246,7 +246,7 @@ customeridtype: "account",
 
 ## Step 4: Deleting a Record
 
-Delete is the simplest mutation — just the record ID:
+Delete is the simplest mutation. Just pass the record ID:
 
 ```tsx
 const deleteOpportunity = useMutation({
@@ -270,24 +270,24 @@ disabled={deleteOpportunity.isPending}
 
 ## Key Takeaways
 
-- Multiple `useQuery` calls in one component run in parallel — Tanstack Query fires them simultaneously
+- Multiple `useQuery` calls in one component run in parallel. Tanstack Query fires them simultaneously
 - Use `enabled: !!id` to prevent queries from running before a URL parameter has a value
 - Filter related records using the `_*_value` lookup field: `_parentaccountid_value eq ${accountId}`
-- Use `useMutation` for writes — it gives you `isPending`, `onSuccess`, and `onError` without manual state
+- Use `useMutation` for writes. It gives you `isPending`, `onSuccess`, and `onError` without manual state
 - After a mutation, call `queryClient.invalidateQueries()` to trigger a background refetch of the affected list
-- To link an Opportunity to an Account on create, use the polymorphic typed bind: `"customerid_account@odata.bind": "/accounts(id)"` — the pattern is `<fieldname>_<entitytype>@odata.bind`
-- The `_*_value` field (e.g., `_parentaccountid_value`) is for reading only — it is not writable
-- `customerid` + `customeridtype` as plain properties do not exist on the Opportunity OData type — they will cause a 400 error
-- The generated `OpportunitiesBase` type includes `"ParentAccountId@odata.bind"` fields but do not use them — PascalCase navigation properties are not recognised by Dataverse
-- Decimal and currency fields (e.g., `estimatedvalue`) are typed as `string` in the generated model but **must be sent as numbers** — use `Number(value)` before passing them, or Dataverse returns a 400 Edm.Decimal error
-- The generated types are unreliable enough on writes that `as any` is the honest cast — the type says `string`, the API needs `number`, satisfying the type makes the API call fail
+- To link an Opportunity to an Account on create, use the polymorphic typed bind: `"customerid_account@odata.bind": "/accounts(id)"`. The pattern is `<fieldname>_<entitytype>@odata.bind`
+- The `_*_value` field (e.g., `_parentaccountid_value`) is read-only and not writable on create
+- `customerid` + `customeridtype` as plain properties do not exist on the Opportunity OData type and will cause a 400 error
+- The generated `OpportunitiesBase` type includes `"ParentAccountId@odata.bind"` fields but do not use them. PascalCase navigation properties are not recognised by Dataverse
+- Decimal and currency fields (e.g., `estimatedvalue`) are typed as `string` in the generated model but **must be sent as numbers**. Use `Number(value)` before passing them, or Dataverse returns a 400 Edm.Decimal error
+- The generated types are unreliable enough on writes that `as any` is the honest cast. The type says `string`, the API needs `number`, and satisfying the type makes the API call fail
 - The spread trick `...(value && { field: value })` is a clean way to include optional fields only when they are non-empty, avoiding sending empty strings to the API
 
 ---
 
 ## What's Next
 
-In Chapter 5, we build the Dashboard screen — pipeline charts, KPI cards, and data aggregation from Dataverse. This is where Code Apps pulls clearly ahead of Canvas App: a real charting library, full control over the layout, and data shaped exactly how you need it.
+In Chapter 5, we build the Dashboard screen: pipeline charts, KPI cards, and data aggregation from Dataverse. This is where Code Apps pulls clearly ahead of Canvas App: a real charting library, full control over the layout, and data shaped exactly how you need it.
 
 ---
 

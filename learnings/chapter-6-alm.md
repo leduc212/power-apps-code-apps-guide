@@ -10,8 +10,8 @@
 
 Chapters 1–5 covered building. Chapter 6 covers the last two things that take an app from a portfolio demo to a real deployment:
 
-1. **Context** — knowing who the logged-in user is, and using that to personalise the experience
-2. **ALM** — packaging the app into a Solution, and using Power Platform Pipelines to deploy from Dev to Test to Production
+1. **Context**: knowing who the logged-in user is, and using that to personalise the experience
+2. **ALM**: packaging the app into a Solution, and using Power Platform Pipelines to deploy from Dev to Test to Production
 
 These are different in kind. Context is a code topic. ALM is mostly a platform-admin topic with a handful of CLI commands. Both matter for production.
 
@@ -51,13 +51,13 @@ interface IContext {
 }
 ```
 
-`user.fullName` is the display name of the signed-in user — the same name shown in the Power Apps header. `user.objectId` is their Azure AD Object ID (a GUID).
+`user.fullName` is the display name of the signed-in user, the same name shown in the Power Apps header. `user.objectId` is their Azure AD Object ID (a GUID).
 
-During local development (`npm run dev`), `getContext()` returns a mock context. The user fields will be empty or undefined — that is expected. The real values only appear when the app is hosted inside Power Apps.
+During local development (`npm run dev`), `getContext()` returns a mock context. The user fields will be empty or undefined. That is expected. The real values only appear when the app is hosted inside Power Apps.
 
 ### Wrapping `getContext()` in a Tanstack Query Hook
 
-`getContext()` is an async function — it returns a Promise. The cleanest React pattern is to treat it like any other async data source and wrap it in a custom `useQuery` hook:
+`getContext()` is an async function that returns a Promise. The cleanest React pattern is to treat it like any other async data source and wrap it in a custom `useQuery` hook:
 
 ```typescript
 // src/hooks/useAppContext.ts
@@ -97,15 +97,15 @@ Because `user.fullName` is optional (`undefined` during local dev), the conditio
 
 ---
 
-## Part 2: Personalisation — "My Opportunities"
+## Part 2: Personalisation ("My Opportunities")
 
-A natural next step is filtering data to what belongs to the current user — "My Opportunities" or "My Accounts". This is where the context gives you just enough to run into a specific Dataverse gotcha worth knowing.
+A natural next step is filtering data to what belongs to the current user: "My Opportunities" or "My Accounts". This is where the context gives you just enough to run into a specific Dataverse gotcha worth knowing.
 
 ### The Gotcha: `objectId` ≠ `systemuserid`
 
 `context.user.objectId` is the user's **Azure AD Object ID**. It looks like a GUID: `3fa85f64-5717-4562-b3fc-2c963f66afa6`.
 
-Dataverse opportunities have an `_ownerid_value` field — the GUID of the owning user or team. This GUID is the Dataverse **`systemuserid`** — an internal ID assigned when the user record was created in Dataverse. It is a different GUID from the Azure AD Object ID.
+Dataverse opportunities have an `_ownerid_value` field, which holds the GUID of the owning user or team. This GUID is the Dataverse **`systemuserid`**, an internal ID assigned when the user record was created in Dataverse. It is a different GUID from the Azure AD Object ID.
 
 This means the filter that looks correct:
 
@@ -138,15 +138,15 @@ The approach:
    _ownerid_value eq ${systemUserId}
    ```
 
-In practice you would chain these two queries in a single `useQuery` — fetch context first, then fetch the systemuser record using the `objectId`, with `enabled: !!ctx?.user.objectId` to prevent the second query from firing before the first resolves. The systemuser result can also have `staleTime: Infinity` since it does not change.
+In practice you would chain these two queries in a single `useQuery`: fetch context first, then fetch the systemuser record using the `objectId`, with `enabled: !!ctx?.user.objectId` to prevent the second query from firing before the first resolves. The systemuser result can also have `staleTime: Infinity` since it does not change.
 
 This two-step pattern is the standard approach whenever you need to personalise Dataverse queries against the signed-in user.
 
 ---
 
-## Part 3: ALM — Solutions and Deployment
+## Part 3: ALM, Solutions, and Deployment
 
-Application Lifecycle Management (ALM) for Code Apps follows the same Power Platform solution model as Canvas Apps and Model-Driven Apps. The Code App artifact — the compiled bundle — lives inside a Solution and moves between environments using Power Platform Pipelines.
+Application Lifecycle Management (ALM) for Code Apps follows the same Power Platform solution model as Canvas Apps and Model-Driven Apps. The Code App artifact (the compiled bundle) lives inside a Solution and moves between environments using Power Platform Pipelines.
 
 ### Step 1: Create a Solution in Dev
 
@@ -162,7 +162,7 @@ When you push the app with the PAC CLI, specify the solution:
 npx power-apps push --solutionUniqueName crmsaleshub
 ```
 
-This registers the Code App inside the solution. From this point, the solution is the unit of deployment — not the app directly.
+This registers the Code App inside the solution. From this point, the solution is the unit of deployment, not the app directly.
 
 ### Step 3: Export from Dev
 
@@ -170,7 +170,7 @@ This registers the Code App inside the solution. From this point, the solution i
 pac solution export --name crmsaleshub --path ./export --managed false
 ```
 
-This creates an unmanaged solution zip in `./export`. Unmanaged solutions are for development — they allow changes. Managed solutions are for production — they lock customisations.
+This creates an unmanaged solution zip in `./export`. Unmanaged solutions are for development (they allow changes). Managed solutions are for production (they lock customisations).
 
 ### Step 4: Import to Test/Production
 
@@ -196,25 +196,25 @@ Manual export/import works for a single developer. For a team, use **Power Platf
    pac pipeline run --name "CRM Sales Hub Pipeline" --stageOrder 1
    ```
 
-Pipelines handle the managed/unmanaged conversion, connection references, and environment variable substitution automatically — which is the main reason to use them over manual export/import.
+Pipelines handle the managed/unmanaged conversion, connection references, and environment variable substitution automatically. That is the main reason to use them over manual export/import.
 
 ### Environment Variables
 
 If your app has configuration that differs between Dev and Production (API endpoints, feature flags, etc.), use **Power Platform Environment Variables** rather than hardcoding them. They integrate with solutions and are substituted automatically during pipeline deployment.
 
-In the app, read them via `context.app.appSettings` — any environment variables scoped to the app are available there.
+In the app, read them via `context.app.appSettings`. Any environment variables scoped to the app are available there.
 
 ---
 
 ## Key Takeaways
 
-- `getContext()` is imported from `"@microsoft/power-apps/app"` and returns a Promise — wrap it in `useQuery` with `staleTime: Infinity`
-- `context.user.fullName` and `context.user.userPrincipalName` are immediately useful for personalisation; all user fields return `undefined` during local development — guard with optional chaining
-- `context.user.objectId` is the Azure AD Object ID — **not** the Dataverse `systemuserid`; using it directly in `_ownerid_value` filters will silently return zero results
+- `getContext()` is imported from `"@microsoft/power-apps/app"` and returns a Promise. Wrap it in `useQuery` with `staleTime: Infinity`
+- `context.user.fullName` and `context.user.userPrincipalName` are immediately useful for personalisation; all user fields return `undefined` during local development, so guard with optional chaining
+- `context.user.objectId` is the Azure AD Object ID, **not** the Dataverse `systemuserid`. Using it directly in `_ownerid_value` filters will silently return zero results
 - To filter by the current user in Dataverse, resolve the objectId to a systemuserid by querying `systemuser` where `azureactivedirectoryobjectid eq ${objectId}`
 - Code Apps follow the standard Power Platform ALM model: unmanaged solution in Dev, export, import as managed to Production
 - Power Platform Pipelines automate the deployment chain and handle managed/unmanaged conversion, connection references, and environment variable substitution
-- `context.app.appSettings` is where environment-specific configuration lands at runtime — use Power Platform Environment Variables to populate it rather than hardcoding values
+- `context.app.appSettings` is where environment-specific configuration lands at runtime. Use Power Platform Environment Variables to populate it rather than hardcoding values
 
 ---
 
@@ -223,7 +223,7 @@ In the app, read them via `context.app.appSettings` — any environment variable
 This is the final chapter of the CRM Sales Hub learning series. Starting from "what is a Code App" in Chapter 1, we built a production-ready CRM application with:
 
 - Live Dataverse data (Accounts, Contacts, Opportunities)
-- Full CRUD — create and delete Opportunities linked to Accounts
+- Full CRUD: create and delete Opportunities linked to Accounts
 - A data-driven Dashboard with KPI cards and recharts bar charts
 - User context personalisation via `getContext()`
 - A documented path to production via Power Platform Solutions and Pipelines

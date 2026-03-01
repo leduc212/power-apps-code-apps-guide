@@ -10,7 +10,7 @@
 
 Canvas App has some built-in chart controls. They are limited. You pick from a small list of chart types, hand them a data table, and accept what you get. You cannot control colours per bar, you cannot write a custom tooltip, and the layout is constrained to the canvas grid.
 
-Code Apps are a standard React SPA. Any npm package works. That means recharts, Victory, Chart.js, Nivo — the full JavaScript charting ecosystem. The Dashboard chapter is where Code Apps stops being "Canvas App but harder" and starts being genuinely more powerful.
+Code Apps are a standard React SPA. Any npm package works. That means recharts, Victory, Chart.js, Nivo, the full JavaScript charting ecosystem. The Dashboard chapter is where Code Apps stops being "Canvas App but harder" and starts being genuinely more powerful.
 
 By the end of this chapter we have:
 
@@ -43,7 +43,7 @@ By the end of this chapter we have:
 
 ## Step 1: recharts Is Already There
 
-The starter template from `npx degit github:microsoft/PowerAppsCodeApps/templates/vite` already includes recharts in `package.json`. No install needed — the package is part of the starter:
+The starter template from `npx degit github:microsoft/PowerAppsCodeApps/templates/vite` already includes recharts in `package.json`. No install needed. The package is part of the starter:
 
 ```json
 "recharts": "^2.15.4"
@@ -76,14 +76,14 @@ const { data: opportunities = [], isLoading } = useQuery({
 
 ### Why One Query Instead of Three
 
-You could fire separate queries for open, won, and lost opportunities — one per KPI group. That is three round-trips to Dataverse for data that arrives from the same table. A single query with `top: 500` is simpler and faster.
+You could fire separate queries for open, won, and lost opportunities, one per KPI group. That is three round-trips to Dataverse for data that arrives from the same table. A single query with `top: 500` is simpler and faster.
 
 ### The `top` Limit
 
 `top: 500` is a soft ceiling. Dataverse will return at most 500 records per page. For a portfolio or department-sized dataset this is fine. If you are building for an enterprise with thousands of opportunities, you have two options:
 
-1. **Paginate and aggregate client-side** — use the `skipToken` field that comes back in the result to fetch subsequent pages, then merge everything before deriving the KPIs. This works but makes the fetch logic significantly more complex.
-2. **Use server-side aggregation** — Dataverse supports OData `$apply` for grouping and summing server-side. The generated SDK does not expose `$apply` directly, but you can hit the Web API directly with `fetch` for aggregate-only queries. Chapter 6 touches on this.
+1. **Paginate and aggregate client-side**: use the `skipToken` field that comes back in the result to fetch subsequent pages, then merge everything before deriving the KPIs. This works but makes the fetch logic significantly more complex.
+2. **Use server-side aggregation**: Dataverse supports OData `$apply` for grouping and summing server-side. The generated SDK does not expose `$apply` directly, but you can hit the Web API directly with `fetch` for aggregate-only queries. Chapter 6 touches on this.
 
 For now, `top: 500` keeps the code simple and works correctly for any realistic demo or small-business dataset.
 
@@ -109,9 +109,9 @@ const winRate =
 const avgDeal = open.length > 0 ? totalPipeline / open.length : 0
 ```
 
-**The `Number(o.statecode)` pattern again** — as covered in Chapter 3, the generated model types `statecode` as a union of string literals, but the runtime value is a number. We already know to cast with `Number()`.
+**The `Number(o.statecode)` pattern again**: as covered in Chapter 3, the generated model types `statecode` as a union of string literals, but the runtime value is a number. We already know to cast with `Number()`.
 
-**The `Number(o.estimatedvalue)` pattern again** — `estimatedvalue` is typed as `string` but arrives and needs to be treated as a number, as covered in Chapter 4. Consistent rule: always `Number()` for any currency, decimal, or integer field.
+**The `Number(o.estimatedvalue)` pattern again**: `estimatedvalue` is typed as `string` but arrives and needs to be treated as a number, as covered in Chapter 4. Consistent rule: always `Number()` for any currency, decimal, or integer field.
 
 ---
 
@@ -182,13 +182,13 @@ Without `ResponsiveContainer`, the chart will not resize when the window width c
 </BarChart>
 ```
 
-- `tickFormatter` on `YAxis` — formats axis labels as `$1.2M` instead of `1200000`
-- `formatter` on `Tooltip` — same formatting in the hover tooltip
-- `radius={[4, 4, 0, 0]}` — rounded top corners on the bars
+- `tickFormatter` on `YAxis`: formats axis labels as `$1.2M` instead of `1200000`
+- `formatter` on `Tooltip`: same formatting in the hover tooltip
+- `radius={[4, 4, 0, 0]}`: rounded top corners on the bars
 
 ### Why No CSS Variables for Colors
 
-In Canvas App you would reference a theme colour token. In recharts, `fill` is an SVG attribute — not a CSS property. CSS custom properties (variables like `var(--primary)`) are resolved by the browser's CSS engine, which does not apply to inline SVG attributes. Using `fill="hsl(var(--primary))"` or `fill="oklch(var(--primary))"` will not work here.
+In Canvas App you would reference a theme colour token. In recharts, `fill` is an SVG attribute, not a CSS property. CSS custom properties (variables like `var(--primary)`) are resolved by the browser's CSS engine, which does not apply to inline SVG attributes. Using `fill="hsl(var(--primary))"` or `fill="oklch(var(--primary))"` will not work here.
 
 The practical solution is to use hardcoded hex colours that match your design system. For a production app you would define a theme constants file and import from there, rather than scattering hex strings across components.
 
@@ -206,7 +206,7 @@ import { Cell } from "recharts"
 </Bar>
 ```
 
-`Cell` overrides the fill for a specific bar by index. This is a pattern you cannot do at all in Canvas App's built-in charts — there is no per-bar colour control.
+`Cell` overrides the fill for a specific bar by index. This is a pattern you cannot do at all in Canvas App's built-in charts, which have no per-bar colour control.
 
 ---
 
@@ -262,7 +262,7 @@ Add the nav link in `_layout.tsx`:
 
 ## KPI Formatting Utility
 
-A small helper formats large numbers cleanly — `$1.2M` instead of `$1234567.89`:
+A small helper formats large numbers cleanly (`$1.2M` instead of `$1234567.89`):
 
 ```tsx
 function fmt(n: number): string {
@@ -278,12 +278,12 @@ This gets used in both the KPI card values and the chart axis / tooltip formatte
 
 ## Key Takeaways
 
-- recharts (and any npm charting library) works in Code Apps — this is categorically impossible in Canvas App
+- recharts (and any npm charting library) works in Code Apps. This is categorically impossible in Canvas App
 - `ResponsiveContainer` is required to make recharts charts fill their parent container
-- recharts `fill` is an SVG attribute — CSS custom properties like `var(--primary)` do not resolve here; use hardcoded hex colours or a theme constants file
-- `Cell` inside a `Bar` gives you per-bar colour control — something Canvas App charts cannot do
+- recharts `fill` is an SVG attribute. CSS custom properties like `var(--primary)` do not resolve here; use hardcoded hex colours or a theme constants file
+- `Cell` inside a `Bar` gives you per-bar colour control, something Canvas App charts cannot do
 - One broad query + client-side derivation is the right default for dashboard data at reasonable scale; switch to server-side `$apply` aggregation only when needed
-- The `Number()` cast on `statecode` and `estimatedvalue` is the same pattern from Chapters 3 and 4 — it applies consistently across every numeric field in the generated types
+- The `Number()` cast on `statecode` and `estimatedvalue` is the same pattern from Chapters 3 and 4. It applies consistently across every numeric field in the generated types
 - Skeleton loading states that mirror the final layout prevent layout shift and give the app a production-quality feel
 
 ---

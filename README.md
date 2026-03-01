@@ -1,4 +1,4 @@
-# Power Apps Code Apps — CRM Sales Hub Guide
+# Power Apps Code Apps: CRM Sales Hub Guide
 
 A hands-on learning series for CRM/Dynamics 365 developers building their first Power Apps Code App. Includes a working **CRM Sales Hub** demo app (React + TypeScript + Dataverse) and six blog-ready chapter guides covering everything from setup to production deployment.
 
@@ -8,12 +8,12 @@ A hands-on learning series for CRM/Dynamics 365 developers building their first 
 
 ## What Is This Repo?
 
-This repository documents a real learning journey through Power Apps Code Apps — Microsoft's new capability that lets pro-code developers build standard SPAs (React, Vue, TypeScript/Vite) and host them directly inside Power Platform, complete with Entra authentication, 1,500+ connectors, DLP policies, ALM, and managed hosting.
+This repository documents a real learning journey through Power Apps Code Apps, Microsoft's capability that lets pro-code developers build standard SPAs (React, Vue, TypeScript/Vite) and host them directly inside Power Platform, complete with Entra authentication, 1,500+ connectors, DLP policies, ALM, and managed hosting.
 
 **What you get:**
 
-- **`crm-sales-hub/`** — A working Code App connected to Dynamics 365 Dataverse (Accounts, Contacts, Opportunities). Full CRUD, a sales pipeline dashboard with recharts, and user context via `getContext()`.
-- **`learnings/`** — Six blog-ready chapter guides documenting what was built, the decisions made, and every gotcha hit along the way.
+- **`crm-sales-hub/`**: A working Code App connected to Dynamics 365 Dataverse (Accounts, Contacts, Opportunities). Full CRUD, a sales pipeline dashboard with recharts, and user context via `getContext()`.
+- **`learnings/`**: Six blog-ready chapter guides documenting what was built, the decisions made, and every gotcha hit along the way.
 
 **Who this is for:** Power Apps / Dynamics 365 developers with some front-end experience who want to understand Code Apps without starting from scratch.
 
@@ -58,11 +58,11 @@ Code Apps must be explicitly enabled per environment by an admin:
 2. **Settings** → **Product** → **Features**
 3. Toggle **Enable code apps** → **Save**
 
-> If you are not an admin, this is the first blocker you will hit. It is not optional.
+> If you are not an admin, this is the first blocker you will hit. There is no workaround.
 
 ### License Cost
 
-End-users need a **Power Apps Premium** license (~$20 USD/user/month as of 2026). Unlike some scenarios where per-app licensing is sufficient, Code Apps require Premium. This is a real cost consideration — for small teams or external users, an Azure-hosted web app may be cheaper. For organizations already on Premium (e.g., full Dynamics 365 licenses), this is no additional cost.
+End-users need a **Power Apps Premium** license (~$20 USD/user/month as of 2026). Unlike some scenarios where per-app licensing is sufficient, Code Apps require Premium. This is a real cost consideration. For small teams or external users, an Azure-hosted web app may be cheaper. For organizations already on Premium (e.g., full Dynamics 365 licenses), this is no additional cost.
 
 ---
 
@@ -101,7 +101,7 @@ npm run dev
 
 The `starter` template includes the `powerApps()` Vite plugin (`@microsoft/power-apps-vite`), which runs both your React dev server **and** the SDK connector endpoint on the same port (5173). You do not need `npx power-apps run` in a separate terminal.
 
-The minimal `vite` template does **not** include the plugin — if you use that template, you need two terminals. Use `templates/starter` for real projects.
+The minimal `vite` template does **not** include the plugin, so if you use that template you need two terminals. Use `templates/starter` for real projects.
 
 ### 2. Open the Local Play URL, not localhost
 
@@ -111,7 +111,7 @@ During local development, your app runs on `http://localhost:5173`. But you shou
 https://apps.powerapps.com/play/e/<env-id>/a/local?_localAppUrl=http://localhost:5173/...
 ```
 
-This URL loads your app inside the actual Power Apps host, which handles authentication. Opening raw localhost skips the host entirely — no auth, no connectors.
+This URL loads your app inside the actual Power Apps host, which handles authentication. Opening raw localhost skips the host entirely: no auth, no connectors.
 
 ### 3. Browser blocks localhost from public origins (Chrome/Edge, since Dec 2025)
 
@@ -141,7 +141,7 @@ This affects **every** option set field in the generated models. Always cast wit
 
 ### 6. `statecodename` in a `$select` causes a 400 error
 
-`statecodename` looks like a Dataverse field — it appears in the model as a readable property. But it is not a column; it is an OData annotation that Dataverse attaches automatically. You cannot `$select` it explicitly.
+`statecodename` looks like a Dataverse field (it appears in the model as a readable property), but it is not a column. It is an OData annotation that Dataverse attaches automatically. You cannot `$select` it explicitly.
 
 ```typescript
 // ❌ 400 error: "Could not find property 'statecodename'"
@@ -171,7 +171,7 @@ This applies to all currency, decimal, and integer fields.
 
 ### 8. Linking records with polymorphic lookups: typed OData bind syntax
 
-Opportunity's customer field is polymorphic — it can link to Account or Contact. You cannot set `_parentaccountid_value` directly on create (it's read-only). The correct syntax:
+Opportunity's customer field is polymorphic, meaning it can link to either Account or Contact. You cannot set `_parentaccountid_value` directly on create (it's read-only). The correct syntax:
 
 ```typescript
 // ✅ This works
@@ -189,7 +189,7 @@ Pattern: `<fieldname>_<entitytype>@odata.bind`. For Contact: `customerid_contact
 
 The `OpportunitiesBase` interface marks several fields as required that Dataverse defaults server-side (`ownerid`, `owneridtype`, `TransactionCurrencyId@odata.bind`). Combined with the numeric type mismatches, the generated type doesn't accurately describe what the API accepts on create.
 
-The pragmatic solution: cast the create payload to `as any`. This is honest — satisfying the TypeScript type would cause the API call to fail.
+The pragmatic solution: cast the create payload to `as any`. This is honest, because satisfying the TypeScript type would cause the API call to fail.
 
 ```typescript
 await OpportunitiesService.create({ name: form.name, ... } as any)
@@ -197,7 +197,7 @@ await OpportunitiesService.create({ name: form.name, ... } as any)
 
 ### 10. `context.user.objectId` ≠ Dataverse `systemuserid`
 
-`getContext()` gives you `user.objectId` — the Azure AD Object ID (e.g., `3fa85f64-...`). Dataverse stores the user's **`systemuserid`** in `_ownerid_value`, which is a different GUID.
+`getContext()` gives you `user.objectId`, which is the Azure AD Object ID (e.g., `3fa85f64-...`). Dataverse stores the user's **`systemuserid`** in `_ownerid_value`, which is a different GUID.
 
 Filtering `_ownerid_value eq ${context.user.objectId}` will silently return zero results.
 
@@ -221,24 +221,24 @@ This regenerates the model and service files from scratch.
 
 ### 12. You cannot create connections via CLI
 
-Connections must exist in the Power Apps maker portal before you can reference them via CLI. The CLI commands reference connections by ID — they cannot create new ones. Workflow:
+Connections must exist in the Power Apps maker portal before you can reference them via CLI. The CLI commands reference connections by ID and cannot create new ones. Workflow:
 
 1. Go to [make.powerapps.com](https://make.powerapps.com) → **Data** → **Connections** → create the connection
 2. `pac connection list` to get the connection ID and API name
 3. `pac code add-data-source -a <apiName> -c <connectionId>`
 
-### 13. Your compiled JS bundle is readable — keep secrets out of client code
+### 13. Your compiled JS bundle is readable: keep secrets out of client code
 
-**Playing** the app (`apps.powerapps.com/play/...`) requires Entra authentication — users who aren't shared the app can't open it. That part is protected.
+**Playing** the app (`apps.powerapps.com/play/...`) requires Entra authentication, so users who aren't shared the app can't open it. That part is protected.
 
-However, the compiled JavaScript bundle that the browser downloads is hosted on a publicly accessible CDN endpoint. Someone who discovers the asset URL can download and inspect your JS (minified, but readable). This is standard behavior for any SPA — the same is true of React apps hosted on Azure Static Web Apps, Vercel, or Netlify.
+However, the compiled JavaScript bundle that the browser downloads is hosted on a publicly accessible CDN endpoint. Someone who discovers the asset URL can download and inspect your JS (minified, but readable). This is standard behavior for any SPA, the same as React apps hosted on Azure Static Web Apps, Vercel, or Netlify.
 
-The practical rule: **do not put API keys, secrets, passwords, or sensitive business logic in your front-end code.** All data access should go through connectors, which are authenticated and DLP-enforced server-side. The data itself is safe — only the compiled code is exposed.
+The practical rule: **do not put API keys, secrets, passwords, or sensitive business logic in your front-end code.** All data access should go through connectors, which are authenticated and DLP-enforced server-side. The data itself is safe. Only the compiled code is exposed.
 
 This is what the [official docs](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/system-limits-configuration) say:
 > *"Sensitive user or organizational data shouldn't be stored in the app. Store this kind of data in a data source so the content is retrieved after end-users playing the app go through authentication and authorization checks."*
 
-### 14. Two CLIs exist — the npm CLI is replacing `pac code`
+### 14. Two CLIs exist (the npm CLI is replacing `pac code`)
 
 | Approach | Commands | Status |
 |---|---|---|
@@ -251,17 +251,17 @@ The npm CLI has fewer prerequisites (no PAC CLI needed for basic dev). However, 
 
 ## Comparison: Which App Type Should You Choose?
 
-> This comparison includes an often-overlooked option: embedding a custom SPA as a Web Resource inside a Model-Driven App — a pattern many D365 developers already use for custom dashboards and forms.
+> This comparison includes an often-overlooked option: embedding a custom SPA as a Web Resource inside a Model-Driven App. Many D365 developers already use this pattern for custom dashboards and forms.
 
 | | **Canvas App** | **Model-Driven App** | **Power Pages** | **Code App** | **SPA Web Resource in MDA** |
 |---|---|---|---|---|---|
 | **Target audience** | Makers + pro-devs | Functional consultants + devs | Makers + pro-devs | Pro/enterprise devs | Pro-code D365 devs |
 | **Dev experience** | Power Fx + drag-and-drop | Metadata-driven configuration | Low/pro-code + Liquid templates | Full IDE: React/Vue/TS, npm | Full code, bundled as web resource |
-| **UI control** | High within canvas constraints | Low (schema-driven forms/views) | Medium (templates + custom HTML/CSS) | Full — any library, pixel-perfect | Full — isolated React/Angular SPA |
+| **UI control** | High within canvas constraints | Low (schema-driven forms/views) | Medium (templates + custom HTML/CSS) | Full (any library, pixel-perfect) | Full (isolated React/Angular SPA) |
 | **Data access** | Dataverse + 1,500+ connectors | Dataverse only | Dataverse (via table permissions) | Dataverse + 1,500+ connectors via SDK | Dataverse via `Xrm.WebApi` or direct REST; no connector ecosystem |
-| **Authentication** | Managed by platform | Managed by platform | External (B2C, AAD, anonymous) | Managed by platform — zero config | Inherited from MDA session (`Xrm.Page`) |
+| **Authentication** | Managed by platform | Managed by platform | External (B2C, AAD, anonymous) | Managed by platform (zero config) | Inherited from MDA session (`Xrm.Page`) |
 | **Mobile** | ✅ Power Apps mobile app | ✅ Power Apps mobile app | ✅ Browser (responsive) | ❌ Browser only (not Power Apps mobile) | ✅ Via MDA mobile app |
-| **npm ecosystem** | ❌ | ❌ | Partial (Power Pages VS Code extension) | ✅ Full — install any package | ✅ Full during build |
+| **npm ecosystem** | ❌ | ❌ | Partial (Power Pages VS Code extension) | ✅ Full, install any package | ✅ Full during build |
 | **Charting/custom UI** | Limited (built-in controls) | Limited (Power BI embed, built-in charts) | Medium | ✅ Any library (recharts, D3, Victory...) | ✅ Any library |
 | **SharePoint forms** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **External users** | Limited | ❌ | ✅ Primary use case | ❌ (internal Entra only) | ❌ |
@@ -290,7 +290,7 @@ Do you need full UI control + npm ecosystem + Power Platform governance,
 and your users have Premium licenses, and mobile-web-only is acceptable?
   → Code App
 
-Everything else — rapid prototyping, maker-built, multiple data sources?
+Everything else: rapid prototyping, maker-built, multiple data sources?
   → Canvas App
 ```
 
@@ -310,7 +310,7 @@ From the [Microsoft Learn docs](https://learn.microsoft.com/en-us/power-apps/dev
 | **No schema refresh command** | Schema changes on a connector require delete + re-add of the data source. |
 | **No connection creation via CLI** | Connections must be created first in the maker portal; CLI can only reference existing ones. |
 | **Excel Online not yet supported** | Excel Online (Business) and Excel Online (OneDrive) connectors are excluded. |
-| **Compiled JS bundle is readable** | The app play URL requires auth, but the underlying JS asset bundle is on a publicly accessible CDN (standard SPA behavior). No API keys or secrets in client code — use connectors for all data access. |
+| **Compiled JS bundle is readable** | The app play URL requires auth, but the underlying JS asset bundle is on a publicly accessible CDN (standard SPA behavior). No API keys or secrets in client code; use connectors for all data access. |
 | **Browser local network access** | Chrome/Edge block localhost requests from public origins since Dec 2025. Users must grant permission on first local dev session. |
 | **Premium license required** | Every end-user needs Power Apps Premium. No per-app licensing path. |
 | **Sharing limits** | Follows Canvas App managed environment sharing limits. |
@@ -321,17 +321,17 @@ From the [Microsoft Learn docs](https://learn.microsoft.com/en-us/power-apps/dev
 
 ### The Genuine Value
 
-The core value proposition is real: **auth, connectors, governance, and hosting as a service.** Setting up authentication (MSAL, app registrations, token handling) is genuinely painful in traditional web development. Building your own connector integrations is even more painful. Code Apps removes both problems entirely — you write React components, the platform handles the rest.
+The value is real: **auth, connectors, governance, and hosting as a service.** Setting up authentication (MSAL, app registrations, token handling) is genuinely painful in traditional web development. Building your own connector integrations is even more painful. Code Apps removes both problems entirely. You write React components, the platform handles the rest.
 
 For organizations already deep in Power Platform (D365 Sales/Service, existing Dataverse data, established DLP policies), Code Apps slots in perfectly. The gap between "I need a custom dashboard" and "we need to spin up a new Azure-hosted app with its own auth" is now much smaller.
 
-The connector ecosystem as a "data source as a service" argument is compelling. Hundreds of pre-built connectors, all authenticated and governed, callable from TypeScript — this is genuinely hard to replicate outside the platform.
+The connector ecosystem as a "data source as a service" argument is compelling. Hundreds of pre-built connectors, all authenticated and governed, callable from TypeScript. This is genuinely hard to replicate outside the platform.
 
 ### The Vibe Coding Angle
 
 The most interesting signal from the community is how naturally Code Apps pairs with AI coding agents. Several developers report building complete working apps with GitHub Copilot agent mode faster than they ever could with Canvas Apps. The starter template is even explicitly described by Microsoft as "optimized for coding agents."
 
-This is worth taking seriously. Canvas App's Power Fx and the drag-and-drop canvas are notoriously difficult for AI agents to work with — LLMs excel at generating TypeScript and React. Code Apps makes the AI agent the low-code layer, which is a fundamentally different and potentially more powerful abstraction than Power Fx. The prompt replaces the formula bar.
+This is worth taking seriously. Canvas App's Power Fx and the drag-and-drop canvas are notoriously difficult for AI agents to work with. LLMs excel at generating TypeScript and React. Code Apps makes the AI agent the low-code layer, which is a fundamentally different and potentially more powerful abstraction than Power Fx. The prompt replaces the formula bar.
 
 Microsoft's own [FluentSample](https://github.com/microsoft/PowerAppsCodeApps/tree/main/samples/FluentSample) is described as "entirely generated using GitHub Copilot." This is Microsoft openly dog-fooding the vibe-coding workflow.
 
@@ -339,15 +339,15 @@ Microsoft's own [FluentSample](https://github.com/microsoft/PowerAppsCodeApps/tr
 
 **Licensing math is brutal for small teams.** $20/user/month Premium for every user who opens the app is expensive if you're not already paying for it. A small 10-person team costs $200/month just for licenses, before any development cost. A plain Azure Static Web App with Entra auth is a fraction of that at scale. Do the math for your specific scenario before committing.
 
-**Mobile is a significant gap.** "Runs in a browser" sounds fine until you realize it means not in the Power Apps mobile app — which your existing Canvas App users already have installed on their phones. This is a real blocker for field-facing scenarios.
+**Mobile is a significant gap.** "Runs in a browser" sounds fine until you realize it means not in the Power Apps mobile app, which your existing Canvas App users already have installed on their phones. This is a real blocker for field-facing scenarios.
 
 **Microsoft product lifecycle risk.** The community has raised this directly: Code Apps has been generally available for less than six months. Microsoft has a history of evolving or sunsetting Power Platform features. The gap between the npm CLI path and the `pac code` path being deprecated simultaneously is a small but real sign of the platform still finding its feet. Bet on it for a new project, but document everything and keep your code as standard React as possible so it can be extracted if needed.
 
-**Governance of AI-generated apps is uncharted.** When your colleague generates a full app in Copilot with no code review, what's the security posture? The DLP and Entra auth layers help — but this is a real governance question organizations haven't fully worked through yet.
+**Governance of AI-generated apps is uncharted.** When your colleague generates a full app in Copilot with no code review, what's the security posture? The DLP and Entra auth layers help, but this is a real governance question organizations haven't fully worked through yet.
 
 ### Overall Assessment
 
-Code Apps is a strong fit for a specific, well-defined niche: **pro-code custom applications on top of Power Platform data, built by development teams, for internal users who already have Premium licenses.** For that use case, it's genuinely excellent — better developer experience than Canvas App, better UI flexibility than Model-Driven, and better governance than a DIY Azure app.
+Code Apps is a strong fit for a specific, well-defined niche: **pro-code custom applications on top of Power Platform data, built by development teams, for internal users who already have Premium licenses.** For that use case, it's genuinely excellent: better developer experience than Canvas App, better UI flexibility than Model-Driven, and better governance than a DIY Azure app.
 
 It is not a replacement for Canvas Apps (wrong audience), not a replacement for Model-Driven Apps (wrong use case), and not yet a real option for mobile-first or external-user scenarios.
 
@@ -368,18 +368,20 @@ The vibe-coding angle may prove to be its killer feature. If AI coding agents re
 | Official GitHub Repository | [github.com/microsoft/PowerAppsCodeApps](https://github.com/microsoft/PowerAppsCodeApps) |
 | GA Announcement Blog Post (Feb 5, 2026) | [Microsoft Power Platform Blog](https://www.microsoft.com/en-us/power-platform/blog/power-apps/generally-available-host-and-run-code-apps-in-power-apps/) |
 | Inside the New Power Apps (Nov 2025) | [Microsoft Power Platform Blog](https://www.microsoft.com/en-us/power-platform/blog/2025/11/18/inside-the-new-power-apps-the-future-of-app-development/) |
-| GA Announcement — Aric Levin | [ariclevin.com](https://www.ariclevin.com/powerapps/post/code-apps-in-power-apps-are-now-generally-available-ga/) |
-| DEV.to — Unlocking Pro-Code Potential | [dev.to](https://dev.to/seenakhan/code-apps-in-power-apps-unlocking-pro-code-potential-in-a-low-code-world-pkk) |
+| GA Announcement: Aric Levin | [ariclevin.com](https://www.ariclevin.com/powerapps/post/code-apps-in-power-apps-are-now-generally-available-ga/) |
+| DEV.to: Unlocking Pro-Code Potential | [dev.to](https://dev.to/seenakhan/code-apps-in-power-apps-unlocking-pro-code-potential-in-a-low-code-world-pkk) |
 | pac CLI Code Commands Reference | [powerappsguide.com](https://powerappsguide.com/blog/post/pac-cli-code-commands-reference) |
-| Reddit — "What's your opinion on Power Apps Code Apps?" | r/PowerApps (Sep 2025) |
-| Reddit — "Power Apps code apps opinions?" | r/PowerApps (Dec 2025) |
+| Reddit: "What's your opinion on Power Apps Code Apps?" | r/PowerApps (Sep 2025) |
+| Reddit: "Power Apps code apps opinions?" | r/PowerApps (Dec 2025) |
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT. See [LICENSE](LICENSE).
 
 ---
 
 *Built by a CRM/Power Apps specialist learning in public. Issues and PRs welcome.*
+
+*Documentation and coding examples were created with the help of [Claude Sonnet 4.6](https://www.anthropic.com/claude).*
