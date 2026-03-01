@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "appId": "<generated-by-npx-power-apps-init>",
+  "appDisplayName": "CRM Sales Hub",
+  "region": "prod",
+  "environmentId": "<your-environment-id>",
+  "description": " ",
+  "buildPath": "./dist",
+  "buildEntryPoint": "index.html",
+  "localAppUrl": "http://localhost:3000",
+  "logoPath": "Default",
+  "connectionReferences": {},
+  "databaseReferences": {
+    "default.cds": {
+      "dataSources": {
+        "accounts": {
+          "entitySetName": "accounts",
+          "logicalName": "account"
+        },
+        "opportunities": {
+          "entitySetName": "opportunities",
+          "logicalName": "opportunity"
+        },
+        "contacts": {
+          "entitySetName": "contacts",
+          "logicalName": "contact"
+        }
+      },
+      "environmentVariableName": ""
+    }
+  }
+}
