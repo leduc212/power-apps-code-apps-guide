@@ -1,9 +1,11 @@
 import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { AccountsService } from "@/generated/services/AccountsService"
 import { OpportunitiesService } from "@/generated/services/OpportunitiesService"
 import { ContactsService } from "@/generated/services/ContactsService"
+import { formattedValue, unwrap } from "@/lib/dataverse"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -25,17 +27,17 @@ export default function AccountDetailPage() {
   const [form, setForm] = useState({ name: "", estimatedvalue: "", estimatedclosedate: "", rating: "" })
 
   // Fetch the account record
-  const { data: account, isLoading: loadingAccount } = useQuery({
+  const { data: account, isLoading: loadingAccount, error: accountError } = useQuery({
     queryKey: ["account", accountId],
     queryFn: async () => {
       const result = await AccountsService.get(accountId!)
-      return result.data
+      return unwrap(result, "Load account")
     },
     enabled: !!accountId,
   })
 
   // Fetch related opportunities
-  const { data: opportunities = [], isLoading: loadingOpps } = useQuery({
+  const { data: opportunities = [], isLoading: loadingOpps, error: oppsError } = useQuery({
     queryKey: ["opportunities", accountId],
     queryFn: async () => {
       const result = await OpportunitiesService.getAll({
@@ -43,13 +45,13 @@ export default function AccountDetailPage() {
         filter: `_parentaccountid_value eq ${accountId}`,
         orderBy: ["createdon desc"],
       })
-      return result.data ?? []
+      return unwrap(result, "Load opportunities")
     },
     enabled: !!accountId,
   })
 
   // Fetch related contacts
-  const { data: contacts = [], isLoading: loadingContacts } = useQuery({
+  const { data: contacts = [], isLoading: loadingContacts, error: contactsError } = useQuery({
     queryKey: ["contacts", accountId],
     queryFn: async () => {
       const result = await ContactsService.getAll({
@@ -57,7 +59,7 @@ export default function AccountDetailPage() {
         filter: `_accountid_value eq ${accountId}`,
         orderBy: ["lastname asc"],
       })
-      return result.data ?? []
+      return unwrap(result, "Load contacts")
     },
     enabled: !!accountId,
   })
@@ -65,7 +67,7 @@ export default function AccountDetailPage() {
   // Create opportunity mutation
   const createOpportunity = useMutation({
     mutationFn: async () => {
-      await OpportunitiesService.create({
+      const result = await OpportunitiesService.create({
         name: form.name,
         "customerid_account@odata.bind": `/accounts(${accountId})`,
         statecode: 0,
@@ -74,20 +76,25 @@ export default function AccountDetailPage() {
         ...(form.rating && { opportunityratingcode: Number(form.rating) }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
+      return unwrap(result, "Create opportunity")
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["opportunities", accountId] })
       setShowCreateDialog(false)
       setForm({ name: "", estimatedvalue: "", estimatedclosedate: "", rating: "" })
     },
+    onError: (error) => toast.error(`Could not create the opportunity: ${error.message}`),
   })
 
   // Delete opportunity mutation
   const deleteOpportunity = useMutation({
+    // The generated delete() returns void and drops the SDK result, so a failed
+    // delete can't be detected here yet (see docs/v2-audit.md, 4.10).
     mutationFn: (opportunityId: string) => OpportunitiesService.delete(opportunityId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["opportunities", accountId] })
     },
+    onError: (error) => toast.error(`Could not delete the opportunity: ${error.message}`),
   })
 
   if (loadingAccount) {
@@ -97,6 +104,10 @@ export default function AccountDetailPage() {
         <Skeleton className="h-4 w-96" />
       </div>
     )
+  }
+
+  if (accountError) {
+    return <div className="p-6 text-sm text-destructive">Failed to load the account: {accountError.message}</div>
   }
 
   if (!account) {
@@ -139,6 +150,10 @@ export default function AccountDetailPage() {
             + New Opportunity
           </Button>
 
+          {oppsError && (
+            <p className="text-sm text-destructive">Failed to load opportunities: {oppsError.message}</p>
+          )}
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -162,7 +177,9 @@ export default function AccountDetailPage() {
                 opportunities.map((opp) => (
                   <TableRow key={opp.opportunityid}>
                     <TableCell className="font-medium">{opp.name}</TableCell>
-                    <TableCell>{RATING_LABELS[Number(opp.opportunityratingcode)] ?? "-"}</TableCell>
+                    <TableCell>
+                      {formattedValue(opp, "opportunityratingcode") ?? RATING_LABELS[Number(opp.opportunityratingcode)] ?? "-"}
+                    </TableCell>
                     <TableCell>
                       {opp.estimatedvalue ? `$${Number(opp.estimatedvalue).toLocaleString()}` : "-"}
                     </TableCell>
@@ -188,7 +205,11 @@ export default function AccountDetailPage() {
         </TabsContent>
 
         {/* Contacts tab */}
-        <TabsContent value="contacts" className="mt-4">
+        <TabsContent value="contacts" className="space-y-4 mt-4">
+          {contactsError && (
+            <p className="text-sm text-destructive">Failed to load contacts: {contactsError.message}</p>
+          )}
+
           <Table>
             <TableHeader>
               <TableRow>

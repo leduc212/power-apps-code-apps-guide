@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { OpportunitiesService } from "@/generated/services/OpportunitiesService"
+import { unwrap } from "@/lib/dataverse"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -31,14 +32,14 @@ function KpiCard({ label, value, sub }: { label: string; value: string; sub: str
 }
 
 export default function DashboardPage() {
-  const { data: opportunities = [], isLoading, isFetching, refetch } = useQuery({
+  const { data: opportunities = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dashboard-opportunities"],
     queryFn: async () => {
       const result = await OpportunitiesService.getAll({
         select: ["name", "statecode", "estimatedvalue", "opportunityratingcode", "salesstage"],
         top: 500,
       })
-      return result.data ?? []
+      return unwrap(result, "Load opportunities")
     },
   })
 
@@ -84,6 +85,18 @@ export default function DashboardPage() {
           <Skeleton className="h-64" />
           <Skeleton className="h-64" />
         </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <p className="text-sm text-destructive">Failed to load opportunities: {error.message}</p>
+        <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
+          Try again
+        </Button>
       </div>
     )
   }

@@ -2,22 +2,24 @@
 
 > **Blog post title:** Building CRM Dashboards That Canvas App Can't: Data Visualization in Power Apps Code Apps
 >
-> **Audience:** Following along from Chapter 4. You have an Account detail page with working CRUD. Now we build the screen that shows what Code Apps can do that Canvas App genuinely cannot.
+> **Audience:** Following along from Chapter 4. You have an Account detail page with working CRUD. Now we build the screen that shows what Code Apps can do that Canvas genuinely cannot.
+>
+> **Updated September 2026** for SDK 1.4. The original February text is at the [`v1-feb-2026`](https://github.com/leduc212/power-apps-code-apps-guide/tree/v1-feb-2026) tag.
 
 ---
 
 ## Introduction
 
-Canvas App has some built-in chart controls. They are limited. You pick from a small list of chart types, hand them a data table, and accept what you get. You cannot control colours per bar, you cannot write a custom tooltip, and the layout is constrained to the canvas grid.
+Canvas has built-in chart controls. You pick from a short list of chart types, hand them a table, and accept what you get: no per-bar colours, no custom tooltips, layout bound to the canvas grid.
 
-Code Apps are a standard React SPA. Any npm package works. That means recharts, Victory, Chart.js, Nivo, the full JavaScript charting ecosystem. The Dashboard chapter is where Code Apps stops being "Canvas App but harder" and starts being genuinely more powerful.
+A Code App is a standard React SPA, so any npm package works: recharts, Chart.js, Nivo, D3, the whole JavaScript charting ecosystem. This is where Code Apps stops being "Canvas but harder" and becomes genuinely more capable.
 
 By the end of this chapter we have:
 
 - Four KPI cards: pipeline value, win rate, average deal size, total opportunities
 - A bar chart of open pipeline value by sales stage
 - A bar chart of open opportunity count by rating (Hot / Warm / Cold)
-- A loading skeleton that covers the entire dashboard while data fetches
+- A loading skeleton, an error state, and a Refresh button
 
 ---
 
@@ -25,12 +27,12 @@ By the end of this chapter we have:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  Dashboard                                          │
+│  Dashboard                              [Refresh]   │
 │                                                     │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │
-│  │ Pipeline │ │ Win Rate │ │ Avg Deal │ │ Total  │ │
-│  │  Value   │ │          │ │   Size   │ │  Opps  │ │
-│  └──────────┘ └──────────┘ └──────────┘ └────────┘ │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐  │
+│  │ Pipeline │ │ Win Rate │ │ Avg Deal │ │ Total  │  │
+│  │  Value   │ │          │ │   Size   │ │  Opps  │  │
+│  └──────────┘ └──────────┘ └──────────┘ └────────┘  │
 │                                                     │
 │  ┌───────────────────────┐ ┌─────────────────────┐  │
 │  │ Pipeline by Stage     │ │ Opps by Rating      │  │
@@ -43,55 +45,72 @@ By the end of this chapter we have:
 
 ## Step 1: recharts Is Already There
 
-The starter template from `npx degit github:microsoft/PowerAppsCodeApps/templates/vite` already includes recharts in `package.json`. No install needed. The package is part of the starter:
+The `starter` template from Chapter 2 includes recharts:
 
 ```json
 "recharts": "^2.15.4"
 ```
 
-If you scaffolded manually without the template, install it:
-
-```bash
-npm install recharts
-```
+If you started from the minimal `vite` template instead, install it with `npm install recharts`.
 
 ---
 
 ## Step 2: One Query, All the Data
 
-The dashboard is derived from a single Opportunity query. We fetch all opportunities (open, won, and lost) in one call and compute every KPI and chart series from that dataset in the component.
+The whole dashboard is derived from one Opportunity query. We fetch open, won and lost opportunities together and compute every KPI and chart series in the component.
 
 ```tsx
-const { data: opportunities = [], isLoading } = useQuery({
+const { data: opportunities = [], isLoading, isFetching, error, refetch } = useQuery({
   queryKey: ["dashboard-opportunities"],
   queryFn: async () => {
     const result = await OpportunitiesService.getAll({
       select: ["name", "statecode", "estimatedvalue", "opportunityratingcode", "salesstage"],
       top: 500,
     })
-    return result.data ?? []
+    return unwrap(result, "Load opportunities")
   },
 })
 ```
 
 ### Why One Query Instead of Three
 
-You could fire separate queries for open, won, and lost opportunities, one per KPI group. That is three round-trips to Dataverse for data that arrives from the same table. A single query with `top: 500` is simpler and faster.
+Separate queries for open, won and lost would be three round trips for rows from the same table. One query is simpler and faster at this size.
 
-### The `top` Limit
+### The `top: 500` Limit (and Why It's a Shortcut)
 
-`top: 500` is a soft ceiling. Dataverse will return at most 500 records per page. For a portfolio or department-sized dataset this is fine. If you are building for an enterprise with thousands of opportunities, you have two options:
+`top: 500` means **at most 500 rows**. If you have more, the rest are silently left out and every KPI on the page is wrong without any sign of it. That's acceptable for a demo on a trial environment. It isn't acceptable in production.
 
-1. **Paginate and aggregate client-side**: use the `skipToken` field that comes back in the result to fetch subsequent pages, then merge everything before deriving the KPIs. This works but makes the fetch logic significantly more complex.
-2. **Use server-side aggregation**: Dataverse supports OData `$apply` for grouping and summing server-side. The generated SDK does not expose `$apply` directly, but you can hit the Web API directly with `fetch` for aggregate-only queries. Chapter 6 touches on this.
+The fixes, all covered in Chapter 7:
 
-For now, `top: 500` keeps the code simple and works correctly for any realistic demo or small-business dataset.
+1. **Fetch every page.** Walk the `skipToken` that comes back with each page until there isn't one, with a safety cap. Fine for a few thousand rows.
+2. **Ask for the total.** SDK 1.4 added `count: true`, which returns the server-side total (Dataverse caps it at 5,000). At minimum, compare it to the rows you have and warn when the dashboard is incomplete.
+3. **Aggregate on the server.** The generated services don't expose OData `$apply`, so sums and group-bys over large tables need another route: a Dataverse custom API added with `pa app add dataverse-api`, or a Power Automate flow. Past a few thousand rows, this is the right answer.
+
+> **Correction from February:** I promised that Chapter 6 would cover `$apply`. It didn't, and the generated services still can't do it. The options above are what actually works.
+
+### The Error State
+
+Because the query uses `unwrap`, a failure reaches `error` and the page shows it, with a way to retry:
+
+```tsx
+if (error) {
+  return (
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <p className="text-sm text-destructive">Failed to load opportunities: {error.message}</p>
+      <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
+        Try again
+      </Button>
+    </div>
+  )
+}
+```
+
+A dashboard that fails silently shows zeros, and zeros look like real numbers. That's worse than an error.
 
 ---
 
 ## Step 3: Deriving KPIs in the Component
-
-All four KPI values come from filtering and reducing the fetched array. No server-side query changes needed:
 
 ```tsx
 const open = opportunities.filter(o => Number(o.statecode) === 0)
@@ -109,9 +128,7 @@ const winRate =
 const avgDeal = open.length > 0 ? totalPipeline / open.length : 0
 ```
 
-**The `Number(o.statecode)` pattern again**: as covered in Chapter 3, the generated model types `statecode` as a union of string literals, but the runtime value is a number. We already know to cast with `Number()`.
-
-**The `Number(o.estimatedvalue)` pattern again**: `estimatedvalue` is typed as `string` but arrives and needs to be treated as a number, as covered in Chapter 4. Consistent rule: always `Number()` for any currency, decimal, or integer field.
+The `Number()` coercion on `statecode` and `estimatedvalue` is the same habit from Chapters 3 and 4: correct whether the value arrives as a string or a number.
 
 ---
 
@@ -136,22 +153,15 @@ const byRating = [1, 2, 3].map(rating => ({
 }))
 ```
 
-Where the label maps are:
+With the label maps:
 
 ```tsx
-const STAGE_LABELS: Record<number, string> = {
-  0: "Qualify",
-  1: "Develop",
-  2: "Propose",
-  3: "Close",
-}
+const STAGE_LABELS: Record<number, string> = { 0: "Qualify", 1: "Develop", 2: "Propose", 3: "Close" }
 const RATING_LABELS: Record<number, string> = { 1: "Hot", 2: "Warm", 3: "Cold" }
-const RATING_COLORS: Record<number, string> = {
-  1: "#ef4444",  // red
-  2: "#f97316",  // orange
-  3: "#3b82f6",  // blue
-}
+const RATING_COLORS: Record<number, string> = { 1: "#ef4444", 2: "#f97316", 3: "#3b82f6" }
 ```
+
+Chapter 3 recommended reading labels from the `FormattedValue` annotation. Chart axes are the exception: a chart needs a fixed set of categories in a fixed order, including categories with no rows, and annotations only exist on rows you received. A local map is the right tool here. If your organization customizes these choices, keep the map next to the chart and update it when the choice column changes.
 
 ---
 
@@ -159,7 +169,7 @@ const RATING_COLORS: Record<number, string> = {
 
 ### `ResponsiveContainer` Is Required
 
-recharts components like `BarChart` have a fixed pixel size by default. To make them fill their parent container (which is what you almost always want in a responsive layout), wrap them in `ResponsiveContainer`:
+recharts charts have a fixed pixel size by default. Wrap them in `ResponsiveContainer` so they fill their parent and resize with the window:
 
 ```tsx
 <ResponsiveContainer width="100%" height={220}>
@@ -169,9 +179,7 @@ recharts components like `BarChart` have a fixed pixel size by default. To make 
 </ResponsiveContainer>
 ```
 
-Without `ResponsiveContainer`, the chart will not resize when the window width changes.
-
-### Pipeline by Stage Bar Chart
+### Pipeline by Stage
 
 ```tsx
 <BarChart data={byStage} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
@@ -182,19 +190,17 @@ Without `ResponsiveContainer`, the chart will not resize when the window width c
 </BarChart>
 ```
 
-- `tickFormatter` on `YAxis`: formats axis labels as `$1.2M` instead of `1200000`
-- `formatter` on `Tooltip`: same formatting in the hover tooltip
-- `radius={[4, 4, 0, 0]}`: rounded top corners on the bars
+- `tickFormatter` on `YAxis` shows `$1.2M` instead of `1200000`
+- `formatter` on `Tooltip` uses the same format on hover
+- `radius={[4, 4, 0, 0]}` rounds the top corners of the bars
 
-### Why No CSS Variables for Colors
+### Chart Colours
 
-In Canvas App you would reference a theme colour token. In recharts, `fill` is an SVG attribute, not a CSS property. CSS custom properties (variables like `var(--primary)`) are resolved by the browser's CSS engine, which does not apply to inline SVG attributes. Using `fill="hsl(var(--primary))"` or `fill="oklch(var(--primary))"` will not work here.
+The demo passes explicit hex colours to `fill`. Theme tokens from Tailwind or shadcn (`hsl(var(--primary))`, `oklch(...)`) are easy to get wrong in SVG attributes, and a wrong colour fails silently: the bar just renders black. Keep chart colours in one constants file and import them, rather than scattering hex strings across components.
 
-The practical solution is to use hardcoded hex colours that match your design system. For a production app you would define a theme constants file and import from there, rather than scattering hex strings across components.
+### Per-Bar Colours with `Cell`
 
-### Rating Bar Chart with Per-Bar Colours
-
-To colour each bar differently (red for Hot, orange for Warm, blue for Cold), use recharts' `Cell` component inside the `Bar`:
+To colour each bar differently (red for Hot, orange for Warm, blue for Cold), put a `Cell` per bar inside the `Bar`:
 
 ```tsx
 import { Cell } from "recharts"
@@ -206,13 +212,13 @@ import { Cell } from "recharts"
 </Bar>
 ```
 
-`Cell` overrides the fill for a specific bar by index. This is a pattern you cannot do at all in Canvas App's built-in charts, which have no per-bar colour control.
+Canvas's built-in charts have no per-bar colour control at all.
 
 ---
 
 ## Step 6: Loading Skeleton
 
-The dashboard fetches data asynchronously. While it loads, show a skeleton layout that matches the shape of the final UI. This avoids a jarring layout shift when data arrives:
+Show a skeleton with the same shape as the final layout, so nothing jumps when the data arrives:
 
 ```tsx
 if (isLoading) {
@@ -237,18 +243,13 @@ if (isLoading) {
 
 ## Step 7: Wire Up the Route and Nav
 
-Add the import and route in `router.tsx`:
-
 ```tsx
-import DashboardPage from "@/pages/dashboard"
-
-// in the routes array:
+// router.tsx
 { path: "dashboard", element: <DashboardPage /> },
 ```
 
-Add the nav link in `_layout.tsx`:
-
 ```tsx
+// _layout.tsx
 <NavLink to="/dashboard"
   className={({ isActive }) =>
     `text-sm text-muted-foreground hover:text-foreground ${isActive ? "text-foreground font-medium" : ""}`
@@ -262,8 +263,6 @@ Add the nav link in `_layout.tsx`:
 
 ## KPI Formatting Utility
 
-A small helper formats large numbers cleanly (`$1.2M` instead of `$1234567.89`):
-
 ```tsx
 function fmt(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
@@ -272,25 +271,24 @@ function fmt(n: number): string {
 }
 ```
 
-This gets used in both the KPI card values and the chart axis / tooltip formatters, keeping output consistent everywhere.
+Used by the KPI cards, the axis and the tooltip, so every number on the page is formatted the same way. (It assumes a single currency. Multi-currency organizations should use the `_base` columns, such as `estimatedvalue_base`, which Dataverse converts to the base currency.)
 
 ---
 
 ## Key Takeaways
 
-- recharts (and any npm charting library) works in Code Apps. This is categorically impossible in Canvas App
-- `ResponsiveContainer` is required to make recharts charts fill their parent container
-- recharts `fill` is an SVG attribute. CSS custom properties like `var(--primary)` do not resolve here; use hardcoded hex colours or a theme constants file
-- `Cell` inside a `Bar` gives you per-bar colour control, something Canvas App charts cannot do
-- One broad query + client-side derivation is the right default for dashboard data at reasonable scale; switch to server-side `$apply` aggregation only when needed
-- The `Number()` cast on `statecode` and `estimatedvalue` is the same pattern from Chapters 3 and 4. It applies consistently across every numeric field in the generated types
-- Skeleton loading states that mirror the final layout prevent layout shift and give the app a production-quality feel
+- recharts, and any npm charting library, works in Code Apps
+- `ResponsiveContainer` makes charts fill their parent; `Cell` gives per-bar colours
+- One broad query plus client-side derivation is a fine default **at small scale**; `top: 500` silently truncates, so fetch all pages, check the count, or aggregate on the server (Chapter 7)
+- The generated services don't expose `$apply`; server-side aggregation needs a custom API or a flow
+- A dashboard needs an error state more than any other page, because zeros look like real numbers
+- Use explicit colours for chart fills; use fixed label maps for chart categories
 
 ---
 
 ## What's Next
 
-Chapter 6 covers context and ALM. We use `getContext()` to personalise the dashboard (filter to "my opportunities"), then push the app to a Power Platform solution and set up a Dev→Prod pipeline.
+Chapter 6 covers user context and moving the app between environments: `getContext()` to personalise the app, then solutions, connection references and pipelines.
 
 ---
 

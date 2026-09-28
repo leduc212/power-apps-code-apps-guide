@@ -27,5 +27,5 @@ dist-ssr
 .claude/settings.local.json
 
 # Power Apps — environment-specific config.
-# Readers must run `npx power-apps init` to generate their own.
+# Readers run `pa app init` to generate their own (see README.md).
 power.config.json

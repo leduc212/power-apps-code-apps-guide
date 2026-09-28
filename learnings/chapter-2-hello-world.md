@@ -3,155 +3,107 @@
 > **Blog post title:** Your First Power Apps Code App: From Zero to Live in Power Platform
 >
 > **Audience:** Power Apps / Dynamics 365 developers following along from Chapter 1. You understand what Code Apps is. Now you build one.
+>
+> **Updated September 2026** for SDK 1.4 and the Power Apps CLI (`pa`). The original February text is at the [`v1-feb-2026`](https://github.com/leduc212/power-apps-code-apps-guide/tree/v1-feb-2026) tag.
 
 ---
 
 ## Introduction
 
-In Chapter 1, I covered the mental model: what Code Apps is, what it is not, and when you would reach for it over Canvas App or Model-Driven App. No code, just concepts.
+Chapter 1 was the mental model. Chapter 2 is where we get our hands dirty.
 
-Chapter 2 is where we get our hands dirty.
-
-The goal is simple: get a working Code App - even a blank one - running locally and then published to Power Platform. This chapter is entirely about the tooling, the workflow, and understanding what each step actually does. No CRM data yet, no fancy UI. Just the foundation that everything else builds on.
-
-By the end, you will have a Code App live in your Power Platform environment that you built from scratch in your IDE.
+The goal is simple: get a working Code App, even a blank one, running locally and then published to Power Platform. This chapter is about the tooling and what each step actually does. No CRM data yet.
 
 ---
 
 ## Prerequisites
 
-Before running a single command, make sure you have these installed:
-
 | Tool | Why you need it |
 |---|---|
-| [Node.js LTS](https://nodejs.org/) | Runtime for npm and all build tooling |
-| [Git](https://git-scm.com/) | Required by `degit` to scaffold the template |
-| [Power Platform CLI (PAC)](https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction) | Needed for `pac auth` and `pac code add-data-source` (Chapters 3+) |
+| [Node.js LTS](https://nodejs.org/) | Runtime for npm and the build tooling |
+| [Git](https://git-scm.com/) | Used by `degit` to scaffold the template |
+| Power Apps CLI (`pa`) | Sign in, initialize, add data sources, publish |
 | VS Code (or your IDE of choice) | Where you write the code |
 
-You also need a **Power Platform environment with Code Apps enabled**. If you are an environment admin:
+Install the CLI globally:
 
-1. Go to [Power Platform Admin Center](https://admin.powerplatform.microsoft.com)
-2. Environments > select your environment > Settings > Product > Features
-3. Find **Power Apps code apps** and toggle **Enable code apps** on
-
-If you are not an admin, you need someone with that access to flip the toggle before you can push or run apps connected to that environment.
-
----
-
-## A Quick Note on Two CLIs
-
-You will see two sets of CLI commands in the official documentation:
-
-**Option A - PAC CLI (`pac code` commands):**
 ```bash
-pac code init
-pac code push
+npm install --global @microsoft/power-apps-cli
 ```
 
-**Option B - npm CLI (`npx power-apps` commands, new as of SDK v1.0.4):**
-```bash
-npx power-apps init
-npx power-apps run
-npx power-apps push
-```
+Or skip the global install and run it on demand by writing `npx -p @microsoft/power-apps-cli pa` wherever this series writes `pa`.
 
-The npm CLI is the newer approach and will **replace** the `pac code` commands in a future release. It has fewer prerequisites (you do not need PAC CLI installed just to run the app). Microsoft's docs already recommend it.
+You also need a **Power Platform environment with Code Apps enabled**. An admin turns it on per environment:
 
-I will use the **npm CLI** throughout this series. But I will call out the PAC CLI equivalent where it matters, because you will see both in existing tutorials and GitHub issues.
+1. [Power Platform admin center](https://admin.powerplatform.microsoft.com) > **Manage** > **Environments** > select the environment
+2. **Settings** > **Product** > **Features**
+3. **Power Apps code apps** > toggle **Enable code apps** > **Save**
+
+Admins can also set this for many environments at once with environment groups and rules. If you aren't an admin, this is the first blocker you'll hit, and there's no workaround.
+
+> **A short history of the CLI.** If you read older tutorials (including the February version of this series) you'll see `pac code init`, `pac code add-data-source`, `npx power-apps init` and `npx power-apps push`. At GA there were two CLIs: the Power Platform CLI's `pac code` commands, and an npm-based `power-apps` CLI that was replacing them. By September 2026 both have been superseded by a single CLI, `pa`, with grouped commands (`pa app ...`, `pa auth ...`, `pa connection ...`). You no longer need `pac` to build a Code App. The concepts carry over; only the commands changed.
 
 ---
 
 ## Step 1: Scaffold the Project
 
-Microsoft maintains two starter templates on GitHub:
+Microsoft maintains two templates in the [PowerAppsCodeApps repo](https://github.com/microsoft/PowerAppsCodeApps/tree/main/templates):
 
-- `templates/vite` - minimal Vite setup, good for understanding the basics
-- `templates/starter` - Vite + React + Tailwind CSS + Tanstack Query + React Router (recommended for real apps)
+- `templates/starter` (recommended): Vite + React + TypeScript + Tailwind + TanStack Query + React Router, with the Power Apps Vite plugin already wired in
+- `templates/vite`: a minimal `npm create vite` project configured for Code Apps
 
-For the CRM Sales Hub we will build throughout this series, the **starter** template is the right choice. It gives us routing (for multiple screens), data fetching (Tanstack Query), and styling (Tailwind) out of the box.
-
-Run this in your terminal from the parent directory where you want the project to live:
+For the CRM Sales Hub we use **starter**: routing for multiple screens, TanStack Query for data fetching and Tailwind for styling, out of the box.
 
 ```bash
 npx degit github:microsoft/PowerAppsCodeApps/templates/starter crm-sales-hub
 cd crm-sales-hub
+npm install
 ```
 
-`degit` clones the template folder directly without copying the git history, so you start with a clean slate.
+`degit` copies the template folder without its git history, so you start clean. At this point it's a standard Vite + React + TypeScript project with two Power Apps-specific packages: the `@microsoft/power-apps` client library and the `@microsoft/power-apps-vite` plugin.
 
-### What You Get
+The template's `package.json` lags behind the library (in September 2026 it still asked for `^1.2.5` while 1.4.0 was out). Move both packages to the latest version right away:
 
-Open the folder in VS Code. The structure looks like this:
-
+```bash
+npm install @microsoft/power-apps@latest
+npm install --save-dev @microsoft/power-apps-vite@latest
 ```
-crm-sales-hub/
-├── public/
-├── src/
-│   ├── App.tsx          <- root component
-│   ├── main.tsx         <- entry point
-│   └── ...
-├── index.html
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
-```
-
-At this point it is a completely standard Vite + React + TypeScript project. There is nothing Power Platform-specific yet. That comes in the next step.
 
 ---
 
-## Step 2: Install Dependencies and Initialize
-
-Install dependencies including the Power Apps SDK:
+## Step 2: Sign In and Initialize
 
 ```bash
-npm install
-npm install @microsoft/power-apps
+pa auth login
+pa app init --display-name "CRM Sales Hub" --environment-id <your-environment-id>
 ```
 
-Now initialize it as a Code App:
+`pa auth login` opens the browser for Entra sign-in. The CLI caches the account, so you do this once per machine. `pa auth status` shows which account is active, and `pa auth switch` changes it.
 
-```bash
-npx power-apps init
-```
+`pa app init` registers the project against an environment. Run it without flags and it prompts you instead. The environment ID is in the admin center URL when you select the environment.
 
-This command does two things:
-1. **Authenticates you** with your Power Platform tenant (a browser window opens for Entra sign-in)
-2. **Asks for your environment** and **a display name** for the app, then writes that metadata into the project
-
-You can also pass the values directly to skip the interactive prompts:
-
-```bash
-npx power-apps init --displayName "CRM Sales Hub" --environmentId <your-environment-id>
-```
-
-To find your environment ID: go to [Power Platform Admin Center](https://admin.powerplatform.microsoft.com) > Environments > select your environment > the ID is in the URL.
+> **Check the account before every push.** If you work across tenants (a client's and your own, say), `pa auth status` is the first thing to run. The CLI will happily push to whichever environment the active account points at.
 
 ### What Changed After Init
 
-After running `init`, one new file appears in the project root:
-
-```
-crm-sales-hub/
-├── power.config.json    <- NEW
-└── ...
-```
-
-Open `power.config.json`. It looks something like this:
+One new file appears in the project root: `power.config.json`. Trimmed, it looks like this:
 
 ```json
 {
-  "appId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "displayName": "CRM Sales Hub",
-  "environmentId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "connections": []
+  "version": "1.0",
+  "appId": "<app-id>",
+  "appDisplayName": "CRM Sales Hub",
+  "environmentId": "<your-environment-id>",
+  "buildPath": "./dist",
+  "buildEntryPoint": "index.html",
+  "connectionReferences": {},
+  "databaseReferences": {}
 }
 ```
 
-**Important:** Do not edit this file manually. It is owned by the SDK and CLI - both use it to know which app in which environment you are working with. The `connections` array will grow automatically as you add data sources in Chapter 3.
+It records which app, in which environment, uses which data sources. The CLI owns it: `pa app add data-source`, `pa app add flow` and `pa app set-setting` all write to it. Treat it as CLI-managed and edit it by hand only for a documented fix.
 
-This file should be committed to git. It does not contain secrets - just metadata.
+It holds no secrets. Commit it in your own project. (This guide's demo doesn't commit it, because every reader points the app at a different environment.)
 
 ---
 
@@ -161,21 +113,7 @@ This file should be committed to git. It does not contain secrets - just metadat
 npm run dev
 ```
 
-That is the only command you need. The output looks like this:
-
-```
-  Power Apps Vite Plugin
-
-  ➜  Local Play:   https://apps.powerapps.com/play/e/<env-id>/a/local?_localAppUrl=http://localhost:5173/&_localConnectionUrl=http://localhost:5173/__vite_powerapps_plugin__/power.config.json
-
-  VITE v7.x.x  ready in 597 ms
-
-  ➜  Local:   http://localhost:5173/
-```
-
-### Why Just One Command?
-
-The `starter` template includes the `powerApps()` Vite plugin (from `@microsoft/power-apps-vite`). Look at `vite.config.ts`:
+The starter template's `vite.config.ts` includes the Power Apps Vite plugin:
 
 ```typescript
 import { powerApps } from '@microsoft/power-apps-vite';
@@ -184,147 +122,124 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    powerApps()    // <- this does the heavy lifting
+    powerApps()    // <- serves the app and the connector config on one port
   ],
   ...
 })
 ```
 
-This plugin integrates the Power Apps SDK connection server directly into the Vite dev server. Both your React app and the connector config endpoint run on the same port (5173). That is why the Local Play URL points to `localhost:5173` for both `_localAppUrl` and `_localConnectionUrl`.
-
-> **Note for the minimal `vite` template:** If you scaffold from `templates/vite` instead of `templates/starter`, the `powerApps()` plugin is not included. In that case you do need two terminals - `npx power-apps run` in one and `npm run dev` in another. The `starter` template is recommended precisely because the plugin simplifies this.
-
-### Open the Local Play URL
-
-Copy the Local Play URL from the terminal output and open it in your browser:
+The plugin runs the Power Apps local host inside the Vite dev server, so one command serves both your app and the config the host needs. The output includes a **Local Play** URL:
 
 ```
-https://apps.powerapps.com/play/e/<env-id>/a/local?_localAppUrl=http://localhost:5173/&_localConnectionUrl=http://localhost:5173/__vite_powerapps_plugin__/power.config.json
+  ➜  Local Play:   https://apps.powerapps.com/play/e/<env-id>/a/local?_localAppUrl=http://localhost:5173/&_localConnectionUrl=...
+  ➜  Local:        http://localhost:5173/
 ```
 
-Two things to watch out for:
+> **Using the minimal `vite` template?** It doesn't include the plugin. Run `npm run dev` for the app and `pa app run` for the local host, which prints the Local Play URL.
 
-**1. Browser local network access prompt**
+### Open the Local Play URL, not localhost
 
-Since December 2025, Chrome and Edge block requests from public origins (the Power Apps host) to local endpoints (your localhost) by default. The browser will prompt you to allow local network access. Click **Allow**.
+Opening `localhost:5173` directly skips the Power Apps host: no sign-in, no connectors. Always open the Local Play URL, which loads your local app inside the real host.
 
-If the prompt does not appear on a managed device, check:
-- Edge: `edge://flags/#local-network-access-permission`
-- Chrome: [Local Network Access permission prompt](https://developer.chrome.com/blog/local-network-access)
+Two things to watch:
 
-**2. Same browser profile**
+**1. Local network access.** Chrome and Edge block requests from public sites (the Power Apps host) to `localhost` by default. The browser prompts you to allow local network access; click **Allow**. On managed devices the prompt may be blocked by policy, so ask IT about the local network access settings. If you embed the app in an iframe during development, the iframe needs `allow="local-network-access"`.
 
-Open the Local Play URL in the same browser profile that is signed into your Power Platform tenant. The host relies on the existing Entra session - a different profile means a different identity and auth will fail silently.
+**2. Same browser profile.** Open the URL in the browser profile that is signed in to your Power Platform tenant. The host uses that session; a different profile means a different identity and a confusing failure.
 
 ### What You Should See
 
-A blank app rendered inside the Power Apps player shell - the header and navigation chrome of Power Apps, with your React app loaded inside it. For the starter template, this is a simple placeholder screen.
-
-You are now running a React TypeScript app locally, talking to Power Platform infrastructure, with Entra authentication handled automatically.
+Your React app inside the Power Apps player: the Power Apps header across the top, the starter template's placeholder page below it. You're now running a local React app against real Power Platform infrastructure, with authentication handled for you.
 
 ---
 
-## Step 4: Build and Push to Power Platform
-
-When you are ready to publish:
+## Step 4: Build and Publish
 
 ```bash
 npm run build
-npx power-apps push
+pa app push
 ```
 
-- `npm run build` compiles TypeScript and bundles the app with Vite (output goes to `/dist`)
-- `npx power-apps push` uploads that `/dist` bundle to Power Platform and registers it as an app
+- `npm run build` type-checks and bundles the app into `./dist`
+- `pa app push` uploads `./dist` and registers a new version of the app
 
-On success, the CLI prints a URL:
+On success the CLI prints the app's play URL. The app also appears under **Apps** in [make.powerapps.com](https://make.powerapps.com), next to your Canvas Apps.
 
+Pushing doesn't give anyone else access. Share it from the maker portal, or from the CLI:
+
+```bash
+pa app share --principal colleague@contoso.com
 ```
-App URL: https://apps.powerapps.com/play/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+### Optional: Hide the Power Apps Header
+
+Power Apps draws its own header bar above your app. If your app has its own header, hide the Power Apps one for all users:
+
+```bash
+pa app set-setting --show-header false
+pa app push
 ```
 
-Open that URL. Your app is now live, hosted by Power Platform, fully authenticated. You can navigate to [make.powerapps.com](https://make.powerapps.com), go to **Apps**, and you will see **CRM Sales Hub** in the list alongside your Canvas Apps.
-
-From there you can share it with other users the same way you share any Power App.
+Or hide it for one link only by adding `?hideNavBar=true` to the play URL.
 
 ---
 
 ## What Just Happened (Under the Hood)
 
-To connect what we did to the architecture from Chapter 1:
-
 ```
-npm run dev          -> starts Vite on port 5173
-                        powerApps() plugin handles both:
-                          - your React app (hot module reload)
-                          - SDK connection endpoint (/__vite_powerapps_plugin__/power.config.json)
+pa auth login        -> caches your Entra sign-in for the CLI
+pa app init          -> writes power.config.json (app + environment)
 
-npm run build        -> compiles your React/TypeScript SPA into static assets (/dist)
+npm run dev          -> Vite dev server on port 5173; the powerApps() plugin
+                        also serves the local host config the player needs
 
-npx power-apps push  -> uploads /dist to Power Platform, registers it as an app record
+npm run build        -> compiles the SPA into static files in ./dist
+
+pa app push          -> uploads ./dist and publishes a new app version
 ```
 
-The Power Apps host is what makes this different from just deploying a React app to Azure Static Web Apps. The host:
+The Power Apps host is what makes this different from deploying a React app to Azure Static Web Apps. The host:
 
-- Handles Entra authentication before your code even loads
-- Acts as a proxy for all connector calls your app makes through the SDK
+- Signs the user in before your code loads
+- Proxies every connector call your app makes through the client library
 - Enforces DLP policies on those calls
-- Shows your organization's standard error/consent dialogs if needed
+- Shows consent dialogs for connections when needed
 
-Your compiled SPA has no auth code in it. No MSAL, no token handling, no API keys. The host deals with all of that. Your React components just call `AccountsService.getAll()` and data comes back.
-
----
-
-## A Note on the Two-Command Build + Push
-
-You will also see this pattern in the official docs:
-
-```bash
-npm run build | pac code push
-```
-
-This pipes the build output into the push command in a single line. It works but it is the PAC CLI version. With the npm CLI you run them as two sequential commands:
-
-```bash
-npm run build
-npx power-apps push
-```
-
-Same result, slightly cleaner mental model since you can see each step separately.
+Your bundle has no auth code: no MSAL, no tokens, no API keys. Your components call `AccountsService.getAll()` and data comes back.
 
 ---
 
 ## What the Starter Template Gives You
 
-Here is what the template set up. You will build on top of all of it:
-
 | Library | Role |
 |---|---|
-| **Vite** | Build tool and dev server - fast hot module reload |
-| **React + TypeScript** | UI framework with full type safety |
-| **React Router** | Client-side routing between pages (Accounts, Opportunities, Dashboard, etc.) |
-| **Tanstack Query** | Data fetching, caching, loading/error states for async calls |
-| **Tailwind CSS** | Utility-first CSS - style components directly in JSX without writing CSS files |
+| **Vite** | Build tool and dev server with hot module reload |
+| **React + TypeScript** | UI framework with type safety |
+| **React Router** | Routing between pages (Accounts, Dashboard, ...) |
+| **TanStack Query** | Data fetching, caching, loading and error states |
+| **Tailwind CSS** + shadcn/ui components | Styling and UI building blocks |
 
-For a CRM app with multiple screens, filtering, and data fetching, these choices are exactly right. Tanstack Query in particular is going to do a lot of heavy lifting when we start querying Dataverse in Chapter 3.
+For a CRM app with multiple screens and a lot of data fetching, these are the right defaults. TanStack Query in particular does a lot of the work from Chapter 3 onward.
+
+> **Other UI libraries work too.** The starter uses Tailwind and shadcn/ui. My production app used Fluent UI v9 instead, because it had to look like the Microsoft 365 apps its users already knew. Any React component library works; pick the one that fits your users.
 
 ---
 
 ## Key Takeaways
 
+- Install the CLI with `npm install --global @microsoft/power-apps-cli`, or run it through `npx`. You don't need `pac`.
 - Scaffold with `npx degit github:microsoft/PowerAppsCodeApps/templates/starter`
-- `npx power-apps init` authenticates you and writes `power.config.json` - do not edit it manually
-- Local development with the `starter` template is a single command: `npm run dev` - the `powerApps()` Vite plugin handles both the app and the SDK connection endpoint on port 5173
-- Use the **Local Play URL** printed by `npm run dev`, not raw localhost - open it in the same browser profile as your Power Platform tenant
-- Allow the browser's local network access prompt when it appears - Chrome/Edge restriction since December 2025
-- `npm run build` then `npx power-apps push` compiles and publishes to Power Platform
-- Your app appears in make.powerapps.com alongside Canvas Apps and can be shared the same way
-- The Power Apps host handles authentication and connector proxying - your code has no auth logic in it
+- `pa auth login`, then `pa app init`, which writes `power.config.json`. The CLI owns that file.
+- With the starter template, `npm run dev` is the only command for local development
+- Open the **Local Play** URL, not localhost, in the browser profile signed in to your tenant, and allow local network access
+- `npm run build`, then `pa app push` to publish; share with `pa app share` or from the maker portal
+- Run `pa auth status` before every push when you work across tenants
 
 ---
 
 ## What's Next
 
-In Chapter 3, I add real CRM data. We connect the app to Dataverse, add Account, Opportunity, and Contact as data sources, and look at the TypeScript models and service files the SDK generates. Then we build the first real screen: an Accounts list with search and filtering.
+In Chapter 3 we add real CRM data: the Account, Contact and Opportunity tables from Dataverse, the TypeScript files the CLI generates for them, and the first real screen, an Accounts list with search.
 
 ---
 

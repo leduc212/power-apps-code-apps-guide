@@ -2,136 +2,176 @@
 
 > **Blog post title:** Dataverse from TypeScript: How Power Apps Code Apps Generates Your Data Layer
 >
-> **Audience:** Following along from Chapter 2. You have a Code App running locally and pushed to Power Platform. Now we connect it to real CRM data.
+> **Audience:** Following along from Chapter 2. You have a Code App running locally and published. Now we connect it to real CRM data.
+>
+> **Updated September 2026** for SDK 1.4 and the Power Apps CLI (`pa`). This chapter changed the most: the February version swallowed errors and had option-set labels backwards. The original is at the [`v1-feb-2026`](https://github.com/leduc212/power-apps-code-apps-guide/tree/v1-feb-2026) tag.
 
 ---
 
 ## Introduction
 
-In Chapter 2 we got a working shell - a React TypeScript app running locally, pushed to Power Platform, showing a placeholder screen. That is the foundation. Now we do the part that matters for a CRM developer: connect it to Dataverse.
+Chapter 2 gave us a working shell. Now the part that matters for a CRM developer: Dataverse.
 
-This chapter covers how Power Apps Code Apps handles Dataverse integration, what gets generated when you add a data source, and how to use those generated files to build a real Accounts list page with search.
-
-By the end, the app will have a working Accounts screen that reads live data from your Dynamics 365 environment.
+This chapter covers what the CLI generates when you add a table, what the generated services actually return (which is not what I assumed in February), and how to build an Accounts list with search on top of them.
 
 ---
 
 ## How Dataverse Integration Works
 
-Before running any commands, it helps to understand the mental model.
+In a Canvas App you add a data source in the designer and Power Fx handles the queries. In a Model-Driven App you configure views and forms and the platform fetches data for you.
 
-When you work with Dataverse in Canvas App, you add a data source through the UI and Power Fx handles the query syntax. In Model-Driven App, you configure views and forms and the platform fetches data for you.
-
-In Code Apps, the approach is different: you tell the CLI which Dataverse tables you want to work with, and the SDK **generates typed TypeScript files** for those tables. You then import and use those generated files directly in your React components, like any other TypeScript module.
-
-The generation happens once per table. After that, your components just call service methods and get back strongly-typed data.
+In Code Apps you tell the CLI which tables you need, and it **generates typed TypeScript files** for each one. Your React components import those files like any other module. Generation happens once per table; after that, components call service methods and get typed data back.
 
 ---
 
-## Step 1: Add Dataverse as a Data Source
+## Step 1: Add the Tables
 
-Adding data sources still uses the PAC CLI (`pac code add-data-source`). This command is not yet part of the npm CLI.
-
-Make sure you are authenticated first. If you used `npx power-apps init` in Chapter 2 you should already be authenticated. If not:
+From the project root:
 
 ```bash
-pac auth create
-pac env select --environment fd2bdf27-ebda-e330-b5a3-06355e252f90
+pa app add data-source --connector dataverse --table account
+pa app add data-source --connector dataverse --table contact
+pa app add data-source --connector dataverse --table opportunity
 ```
 
-Now add the three tables the CRM Sales Hub needs:
+`--table` takes the table's **logical name**: lowercase and singular (`account`, not `accounts`). For custom tables the logical name can be singular even when the entity set name everyone uses is plural; if the CLI says it can't find the table, check the logical name in the table's properties.
 
-```bash
-pac code add-data-source -a dataverse -t account
-pac code add-data-source -a dataverse -t opportunity
-pac code add-data-source -a dataverse -t contact
-```
-
-The `-a dataverse` flag specifies the connector type. The `-t` flag is the **logical name** of the Dataverse table (lowercase, no spaces - same as what you see in the Dataverse table editor or the Web API).
-
-Run each command from inside the `crm-sales-hub` folder.
+Run `pa app init` (Chapter 2) first, so the CLI already knows the environment. If it prompts for an **organization URL**, include the scheme: `https://yourorg.crm.dynamics.com`. Without `https://` the sign-in fails with an `AADSTS70011` invalid-scope error, because the CLI builds the token scope from exactly what you typed.
 
 ---
 
 ## Step 2: Understand What Got Generated
 
-After running those three commands, a new folder appears in `src`:
-
 ```
-src/
-├── generated/
-│   ├── models/
-│   │   ├── AccountsModel.ts
-│   │   ├── OpportunitiesModel.ts
-│   │   └── ContactsModel.ts
-│   └── services/
-│       ├── AccountsService.ts
-│       ├── OpportunitiesService.ts
-│       └── ContactsService.ts
-└── ...
+src/generated/
+├── models/
+│   ├── AccountsModel.ts
+│   ├── ContactsModel.ts
+│   ├── OpportunitiesModel.ts
+│   └── CommonModels.ts        <- shared option types (IGetAllOptions, ...)
+└── services/
+    ├── AccountsService.ts
+    ├── ContactsService.ts
+    └── OpportunitiesService.ts
+.power/schemas/                <- the table schemas the files were generated from
 ```
 
-**Do not edit files in `src/generated/`**. They are regenerated every time you add or remove a data source and any manual changes will be overwritten.
+**Never edit anything in `src/generated/` or `.power/`.** When a table's columns change, regenerate:
+
+```bash
+pa app refresh data-source --name accounts   # or omit --name to refresh everything
+```
+
+> In February there was no refresh command; you had to delete and re-add the data source. That's fixed.
+
+Because these files come from *your* environment's schema, they include any custom columns your organization added. Keep that in mind before you commit generated files from a client's environment to a public repo.
 
 ### The Model File
 
-Open `AccountsModel.ts`. It is a TypeScript interface generated directly from the Dataverse table schema:
+`AccountsModel.ts` is a TypeScript interface generated from the table's columns:
 
 ```typescript
 export interface Accounts {
   accountid: string;
+  accountnumber?: string;
+  address1_city?: string;
   name: string;
-  accountnumber: string | null;
-  address1_city: string | null;
-  address1_country: string | null;
-  telephone1: string | null;
-  statecode: string;           // "0" = Active, "1" = Inactive (string, not number)
-  statecodename?: string;      // display label — returned as an annotation, do NOT put in select
-  revenue: number | null;
-  numberofemployees: number | null;
+  revenue?: string;         // money column, typed as a string
+  statecode: string;        // choice column, typed as a string
+  telephone1?: string;
+  statecodename?: string;   // see "Display labels" below
   // ... many more fields
 }
 ```
 
-This is a direct reflection of your Dataverse table columns with TypeScript types. Nullable columns are typed as `T | null`. Read-only system columns like `ownerid` and `createdon` are included.
+Two things about the generated types need care.
 
-**Gotcha: option set types do not match runtime values.** Fields like `statecode` are typed as `string` in the generated model, but the SDK actually returns them as `number` at runtime. This creates a lose-lose situation: comparing `statecode === 0` gives a TypeScript compile error (*"types 'string' and 'number' have no overlap"*), but comparing `statecode === "0"` compiles cleanly yet always evaluates to `false` at runtime because the value is actually `0`, not `"0"`.
+**Numbers and choice values.** When I built this app on the February generator, choice columns like `statecode` and money columns like `revenue` were typed as strings but arrived from Dataverse as numbers. So `account.statecode === "0"` compiled and was always false. The safe habit, whatever your generator version does, is to coerce before comparing or sending: `Number(account.statecode) === 0`. It's correct whether the value arrives as a string or a number.
 
-The safe fix is to coerce with `Number()` before comparing: `Number(account.statecode) === 0`. This satisfies TypeScript and works regardless of whether the value comes back as a string or a number.
+**Display labels.** Dataverse returns a readable label next to every choice, lookup, date and money value, as an OData annotation on the same row:
 
-The SDK generates a companion `*name` field for every option set (e.g., `statecodename`) that appears in the model as optional. However, **do not include these `*name` fields in your `select` array**. They are not real Dataverse columns. They are formatted value annotations that Dataverse attaches to the response alongside the base field, and requesting them explicitly will result in a 400 error: *"Could not find a property named 'statecodename'."* Map option set values to labels manually in your component instead.
+```
+"statecode": 0,
+"statecode@OData.Community.Display.V1.FormattedValue": "Active"
+```
 
-The model tells you exactly what data is available and TypeScript will warn you if you try to access a field that does not exist on the table.
+The generated model also declares convenience properties like `statecodename`, but **they are not populated** on reads. Don't rely on them, and don't put them in `select`: they aren't columns, and asking for one fails with a 400 (*"Could not find a property named 'statecodename'"*). Select the base column and read the annotation. The demo has a small helper for that:
+
+```typescript
+// src/lib/dataverse.ts
+const FORMATTED_VALUE = "@OData.Community.Display.V1.FormattedValue"
+
+export function formattedValue(row: object, column: string): string | undefined {
+  const value = (row as Record<string, unknown>)[column + FORMATTED_VALUE]
+  return typeof value === "string" ? value : undefined
+}
+```
+
+For a lookup, select its `_<name>_value` column (for example `_createdby_value`) and `formattedValue(row, "_createdby_value")` gives you the related record's name. No second query needed.
+
+> **Correction from February:** I previously told you to map choice values to labels by hand and that `statecodename` "is returned automatically". The second part was wrong, and the first is unnecessary.
 
 ### The Service File
 
-Open `AccountsService.ts`. It exposes the methods you use to query and mutate data:
+`AccountsService.ts` exposes the methods you call:
 
 ```typescript
-AccountsService.getAll(options?)   // retrieve multiple records
-AccountsService.get(id)            // retrieve one record by primary key
-AccountsService.create(record)     // create a new record
-AccountsService.update(id, changes) // update specific fields on a record
-AccountsService.delete(id)         // delete a record
+AccountsService.getAll(options?)     // retrieve multiple records
+AccountsService.get(id, options?)    // retrieve one record by primary key
+AccountsService.create(record)       // create a record
+AccountsService.update(id, changes)  // update only the fields you pass
+AccountsService.delete(id)           // delete a record
 ```
 
-Each method returns a Promise that resolves to `{ data: T }` (or `{ data: T[] }` for `getAll`). The SDK handles the actual HTTP call to the Dataverse Web API through the Power Apps host connector proxy.
+### What the Services Return (read this one twice)
+
+`get`, `getAll`, `create` and `update` resolve to an `IOperationResult`:
+
+```typescript
+interface IOperationResult<T> {
+  success: boolean
+  data: T
+  error?: Error
+  skipToken?: string   // there are more pages
+  count?: number       // only when you ask for it (Chapter 7)
+}
+```
+
+The important part: **when a request fails, the service does not throw.** It resolves with `success: false` and an `error`. Every February example in this series did this:
+
+```typescript
+const result = await AccountsService.getAll({ ... })
+return result.data ?? []     // ❌ a failed query becomes an empty list
+```
+
+A failed query then looks exactly like "no records". TanStack Query never sees an error, `isError` stays false, and you spend an afternoon wondering why the table is empty. The fix is one helper that turns `success: false` into a thrown error:
+
+```typescript
+// src/lib/dataverse.ts
+import type { IOperationResult } from "@microsoft/power-apps/data"
+
+export function unwrap<T>(result: IOperationResult<T>, label: string): T {
+  if (!result.success) throw result.error ?? new Error(`${label} failed`)
+  return result.data
+}
+```
+
+Every service call in the demo goes through it.
+
+(Some problems still throw, such as a data source that was never added. TanStack Query catches those anyway. It's the resolved `success: false` case that gets lost.)
 
 ### `getAll` Options
 
-The `getAll` method accepts an options object for querying:
-
 ```typescript
 AccountsService.getAll({
-  select: ["name", "accountnumber", "address1_city"],  // columns to return (always use this)
+  select: ["name", "accountnumber", "address1_city"],  // columns to return (always set this)
   filter: "statecode eq 0",                            // OData filter
   orderBy: ["name asc"],                               // sort
-  top: 50,                                             // limit records
-  skip: 0,                                             // offset (for paging)
+  top: 50,                                             // at most this many rows
 })
 ```
 
-The `filter` string is a standard OData v4 filter expression - the same syntax you use in the Dataverse Web API. Common patterns:
+`filter`, `orderBy` and `top` are sent to Dataverse (delegated), so the server does the work. The filter is a standard OData v4 expression, the same syntax as the Dataverse Web API:
 
 ```
 statecode eq 0                              equality
@@ -141,40 +181,41 @@ revenue gt 100000                           numeric comparison
 statecode eq 0 and address1_country eq 'AU' logical and
 ```
 
-**Always use `select`** to limit the columns returned. Fetching full records from Dataverse is expensive and unnecessary when you only need a few fields.
+**Always use `select`.** Fetching every column of a Dataverse row is slow and wasteful.
+
+**`getAll` returns one page.** Without `top`, you get the first page of results (up to 5,000 rows), and if there are more, `result.skipToken` is set and the rest is silently left behind. For a search box showing 50 rows that's fine. For anything that must be complete, or anything with paging, see Chapter 7.
+
+**What the Dataverse connector doesn't support** (per the docs, as of August 2026): FetchXML, alternate keys, polymorphic lookups, and creating or changing table definitions. There's also no `$expand`, so related data comes from separate queries (Chapter 4) or from display-label annotations.
 
 ---
 
 ## Step 3: Build the Accounts Page
 
-Now we use those generated files to build the first real screen. We will create `src/pages/accounts.tsx` - an Accounts list with search.
-
-### The Page Component
-
 ```tsx
 // src/pages/accounts.tsx
-import { useState, useDeferredValue } from "react"
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { AccountsService } from "@/generated/services/AccountsService"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { odataString, unwrap } from "@/lib/dataverse"
+// ...shadcn/ui imports
 
 export default function AccountsPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState("")
-  const deferredSearch = useDeferredValue(search)
+  const debouncedSearch = useDebouncedValue(search.trim())
 
   const { data: accounts = [], isLoading, isError } = useQuery({
-    queryKey: ["accounts", deferredSearch],
+    queryKey: ["accounts", debouncedSearch],
     queryFn: async () => {
       const result = await AccountsService.getAll({
         select: ["name", "accountnumber", "address1_city", "telephone1", "statecode"],
-        filter: deferredSearch ? `contains(name, '${deferredSearch}')` : undefined,
+        filter: debouncedSearch ? `contains(name, ${odataString(debouncedSearch)})` : undefined,
         orderBy: ["name asc"],
         top: 50,
       })
-      return result.data ?? []
+      return unwrap(result, "Load accounts")
     },
   })
 
@@ -194,27 +235,13 @@ export default function AccountsPage() {
       )}
 
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Account Number</TableHead>
-            <TableHead>City</TableHead>
-            <TableHead>Phone</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
+        {/* header: Name, Account Number, City, Phone, Status */}
         <TableBody>
           {isLoading ? (
-            Array.from({ length: 8 }).map((_, i) => (
-              <TableRow key={i}>
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-                ))}
-              </TableRow>
-            ))
+            /* skeleton rows */
           ) : (
             accounts.map((account) => (
-              <TableRow key={account.accountid} className="cursor-pointer hover:bg-muted/50">
+              <TableRow key={account.accountid} onClick={() => navigate(`/accounts/${account.accountid}`)}>
                 <TableCell className="font-medium">{account.name}</TableCell>
                 <TableCell>{account.accountnumber ?? "-"}</TableCell>
                 <TableCell>{account.address1_city ?? "-"}</TableCell>
@@ -234,105 +261,68 @@ export default function AccountsPage() {
 }
 ```
 
-A few things in this component that need some explanation:
+The full file is in [`crm-sales-hub/src/pages/accounts.tsx`](../crm-sales-hub/src/pages/accounts.tsx). The parts worth explaining:
 
-**`useDeferredValue` instead of debounce**
+**`unwrap(result, "Load accounts")`** turns a failed request into an error, so the `isError` message actually appears. Without it, that message is dead code.
 
-When the user types in the search box, we do not want to fire a Dataverse query on every single keystroke. The standard approach is to debounce - delay the query until the user stops typing. React's built-in `useDeferredValue` achieves the same result without a custom hook: it tells React to keep using the previous value while the new one is being processed, so the query only fires once the UI has settled. The `queryKey` uses `deferredSearch`, not `search`, so Tanstack Query only refetches when the deferred value actually changes.
+**`odataString(debouncedSearch)`** quotes user input safely. OData string literals use single quotes, so a search for *O'Brien* produces `contains(name, 'O'Brien')`: a broken filter and a 400. The helper doubles embedded quotes:
 
-**`queryKey: ["accounts", deferredSearch]`**
+```typescript
+export function odataString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+```
 
-Tanstack Query caches results by key. Every unique `[accounts, searchTerm]` combination is cached separately. If the user searches for "Contoso", navigates away, and comes back, the cached result appears instantly while a background refresh runs. This is free behavior from Tanstack Query - no extra code needed.
+Any time user input goes into a filter, pass it through this.
 
-**`result.data ?? []`**
+**`useDebouncedValue` for the search box.** The query key uses the debounced value, so a request fires only after the user stops typing for 300 ms:
 
-The service returns `{ data: Accounts[] }`. The `queryFn` unwraps it so the component works directly with the array. The `?? []` default means the component never has to handle `undefined` - it always gets an array.
+```typescript
+// src/hooks/useDebouncedValue.ts
+export function useDebouncedValue<T>(value: T, delayMs = 300): T {
+  const [debounced, setDebounced] = useState(value)
 
-**`statecode === 0`**
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(id)
+  }, [value, delayMs])
 
-Dataverse status codes are numbers. `statecode 0` is Active, `statecode 1` is Inactive. This is standard Dataverse convention across all tables. The `statuscode` field carries the sub-status (the specific reason for the state) and is table-specific.
+  return debounced
+}
+```
+
+> **Correction from February:** I used React's `useDeferredValue` and called it a debounce. It isn't one. It defers *rendering*, not *requests*: typing still produces a new query key, and a Dataverse call, for almost every keystroke. Use a real debounce for anything that hits the network.
+
+**`queryKey: ["accounts", debouncedSearch]`**: TanStack Query caches per key. Search for "Contoso", navigate away, come back, and the cached result shows instantly while a background refresh runs.
+
+**`Number(account.statecode) === 0`**: the coercion habit from above. For a two-state column like this, a hard-coded "Active"/"Inactive" is fine. For anything with more options, use `formattedValue(account, "statecode")`.
 
 ---
 
 ## Step 4: Wire Up the Route and Navigation
 
-The page component exists but the app does not know about it yet. Update two files:
-
-### `src/router.tsx`
-
-Add the accounts route and enable the header:
+Add the page to the router:
 
 ```tsx
-import { createBrowserRouter } from "react-router-dom"
-import Layout from "@/pages/_layout"
-import HomePage from "@/pages/home"
+// src/router.tsx
 import AccountsPage from "@/pages/accounts"
-import NotFoundPage from "@/pages/not-found"
 
-const BASENAME = new URL(".", location.href).pathname
-if (location.pathname.endsWith("/index.html")) {
-  history.replaceState(null, "", BASENAME + location.search + location.hash);
-}
-
-export const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <Layout showHeader={true} />,
-    errorElement: <NotFoundPage />,
-    children: [
-      { index: true, element: <HomePage /> },
-      { path: "accounts", element: <AccountsPage /> },
-    ],
-  },
-], {
-  basename: BASENAME
-})
+// inside the "/" route's children:
+{ path: "accounts", element: <AccountsPage /> },
 ```
 
-### `src/pages/_layout.tsx`
+Leave the template's `BASENAME` code at the top of `router.tsx` alone. The app is served from a generated path inside the Power Apps player, and that code keeps routes working there.
 
-Add the Accounts nav link:
+Then add a nav link in `src/pages/_layout.tsx`:
 
 ```tsx
-import { Outlet, NavLink } from "react-router-dom"
-
-type LayoutProps = { showHeader?: boolean }
-
-export default function Layout({ showHeader = true }: LayoutProps) {
-  return (
-    <div className="min-h-dvh flex flex-col">
-      {showHeader && (
-        <header className="h-14 border-b flex items-center">
-          <div className="mx-auto w-full max-w-7xl px-6 flex items-center gap-6">
-            <span className="font-semibold text-sm">CRM Sales Hub</span>
-            <nav className="flex items-center gap-4">
-              <NavLink to="/" end
-                className={({ isActive }) =>
-                  `text-sm text-muted-foreground hover:text-foreground ${isActive ? "text-foreground font-medium" : ""}`
-                }
-              >
-                Home
-              </NavLink>
-              <NavLink to="/accounts"
-                className={({ isActive }) =>
-                  `text-sm text-muted-foreground hover:text-foreground ${isActive ? "text-foreground font-medium" : ""}`
-                }
-              >
-                Accounts
-              </NavLink>
-            </nav>
-          </div>
-        </header>
-      )}
-
-      <main className="flex-1 flex">
-        <div className="flex-1 mx-auto w-full max-w-7xl">
-          <Outlet />
-        </div>
-      </main>
-    </div>
-  )
-}
+<NavLink to="/accounts"
+  className={({ isActive }) =>
+    `text-sm text-muted-foreground hover:text-foreground ${isActive ? "text-foreground font-medium" : ""}`
+  }
+>
+  Accounts
+</NavLink>
 ```
 
 ---
@@ -343,52 +333,45 @@ export default function Layout({ showHeader = true }: LayoutProps) {
 npm run dev
 ```
 
-Open the Local Play URL, navigate to **Accounts** in the header. You should see:
+Open the Local Play URL and go to **Accounts**. You should see:
 
 1. A loading skeleton while the query runs
-2. Your real Account records from Dynamics 365 rendered in the table
-3. Search working - typing in the box filters records via a live Dataverse `contains` query
+2. Your real Account records
+3. Search filtering on the server through a `contains` query, one request per pause in typing (watch the Network tab)
+4. A red error message, not an empty table, if something goes wrong. Temporarily misspell a column in `select` to see it.
 
 ---
 
 ## What Is Actually Happening at Runtime
 
-When `AccountsService.getAll()` is called, the call path is:
-
 ```
 Your component
   -> AccountsService.getAll()     (generated service)
-     -> Power Apps SDK            (@microsoft/power-apps)
-        -> Power Apps host        (connector proxy in the browser)
+     -> @microsoft/power-apps     (client library)
+        -> Power Apps host        (connector proxy)
            -> Dataverse connector
               -> Your Dynamics 365 environment
 ```
 
-You are not calling the Dataverse Web API directly. The SDK routes the request through the Power Apps host, which applies your tenant's DLP policies, uses the user's existing Entra session for authentication, and proxies the call to Dataverse on your behalf.
-
-This is why there is no auth code, no API keys, and no CORS configuration in the project. The host handles all of it.
+You never call the Dataverse Web API directly. The host signs the request with the user's session, applies DLP policies, and passes it on. That's why there's no auth code, no API keys and no CORS configuration in the project.
 
 ---
 
 ## Key Takeaways
 
-- `pac code add-data-source -a dataverse -t <table>` adds a Dataverse table and generates typed model and service files in `src/generated/`
-- Do not edit files in `src/generated/` - they are regenerated when data sources change
-- The model file is a TypeScript interface matching your Dataverse table schema - nullable columns are typed as `T | null`
-- The service file exposes `getAll`, `get`, `create`, `update`, `delete` - each returning a Promise
-- Always use the `select` option in `getAll` to limit columns
-- Option set fields like `statecode` are typed as `string` in the generated model but return as `number` at runtime. Use `Number(account.statecode) === 0` to safely handle both
-- The SDK generates `*name` companion fields in the model (e.g., `statecodename`) but do NOT put them in `select` - they are Dataverse annotations, not real columns, and will cause a 400 error if selected explicitly
-- The `filter` option accepts standard OData v4 expressions - the same syntax as the Dataverse Web API
-- Use Tanstack Query's `useQuery` to wrap service calls - you get caching, loading states, and error handling for free
-- `useDeferredValue` is a clean way to avoid firing queries on every keystroke without writing a custom debounce hook
-- At runtime, all data calls go through the Power Apps host connector proxy - no direct Dataverse API calls, no auth to configure
+- `pa app add data-source --connector dataverse --table <logical-name>` generates typed models and services in `src/generated/`; `pa app refresh data-source` regenerates them after a schema change
+- Never edit `src/generated/`, and remember it reflects your environment's schema, custom columns included
+- **Services resolve with `success: false` instead of throwing.** Wrap every call in `unwrap()` or your error states never show
+- Read labels from the `@OData.Community.Display.V1.FormattedValue` annotation; the generated `...name` properties are empty and can't be selected
+- Coerce with `Number()` before comparing or sending numeric and choice values
+- Always `select`; escape user input in filters; `getAll` returns a single page
+- Debounce search input; `useDeferredValue` is not a debounce
 
 ---
 
 ## What's Next
 
-In Chapter 4, we go deeper into CRUD. We will build an Account detail page that shows related Contacts and Opportunities, and add the ability to create and edit an Opportunity. That is where the nuances come in - system fields you cannot set on create, partial updates, and working with lookups.
+In Chapter 4 we go deeper into CRUD: an Account detail page with related Contacts and Opportunities, and creating and deleting Opportunities. That's where lookups, write payloads and the generated types get interesting.
 
 ---
 

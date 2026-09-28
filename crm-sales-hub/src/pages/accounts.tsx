@@ -1,7 +1,9 @@
-import { useState, useDeferredValue } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { AccountsService } from "@/generated/services/AccountsService"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { odataString, unwrap } from "@/lib/dataverse"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -10,18 +12,18 @@ import { Badge } from "@/components/ui/badge"
 export default function AccountsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState("")
-  const deferredSearch = useDeferredValue(search)
+  const debouncedSearch = useDebouncedValue(search.trim())
 
   const { data: accounts = [], isLoading, isError } = useQuery({
-    queryKey: ["accounts", deferredSearch],
+    queryKey: ["accounts", debouncedSearch],
     queryFn: async () => {
       const result = await AccountsService.getAll({
         select: ["name", "accountnumber", "address1_city", "telephone1", "statecode"],
-        filter: deferredSearch ? `contains(name, '${deferredSearch}')` : undefined,
+        filter: debouncedSearch ? `contains(name, ${odataString(debouncedSearch)})` : undefined,
         orderBy: ["name asc"],
         top: 50,
       })
-      return result.data ?? []
+      return unwrap(result, "Load accounts")
     },
   })
 

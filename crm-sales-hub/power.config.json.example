@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "appId": "<generated-by-npx-power-apps-init>",
+  "appId": "<generated-by-pa-app-init>",
   "appDisplayName": "CRM Sales Hub",
   "region": "prod",
   "environmentId": "<your-environment-id>",
