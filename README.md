@@ -4,7 +4,7 @@ A hands-on learning series for CRM/Dynamics 365 developers building Power Apps C
 
 > **GA date:** Power Apps Code Apps became generally available on **February 5, 2026**.
 >
-> **Updated September 2026.** This guide was first written at GA. Since then the CLI has been replaced, the client library has moved from 1.0 to 1.4, several limitations have gone, and I've shipped a production Code App that replaced a large Canvas App. Part 1 has been rewritten against the current platform, with corrections called out where the February version was wrong. Part 2, on what production actually needed, is being written. The February version is preserved at the [`v1-feb-2026`](https://github.com/leduc212/power-apps-code-apps-guide/tree/v1-feb-2026) tag.
+> **Updated September 2026.** This guide was first written at GA. Since then the CLI has been replaced, the client library has moved from 1.0 to 1.4, several limitations have gone, and I've shipped a production Code App that replaced a large Canvas App. Part 1 has been rewritten against the current platform, with corrections called out where the February version was wrong. Part 2 is new: five chapters on what production actually needed. The February version is preserved at the [`v1-feb-2026`](https://github.com/leduc212/power-apps-code-apps-guide/tree/v1-feb-2026) tag.
 
 ---
 
@@ -16,6 +16,7 @@ A learning journey through Power Apps Code Apps: Microsoft's way for pro-code de
 
 - **`crm-sales-hub/`**: a working Code App on the standard Dynamics 365 Account, Contact and Opportunity tables. CRUD, a pipeline dashboard with recharts, user context via `getContext()`, and error handling that actually surfaces errors.
 - **`learnings/`**: blog-ready chapters documenting what was built, the decisions behind it, and every gotcha hit along the way.
+- **`tools/`** and **`templates/`**: a script that turns a Canvas App into a migration inventory, and templates for migration specs, tracking, and an AI agent's project rules.
 - **`docs/v2-audit.md`**: the claim-by-claim audit behind the September update: what changed, what was wrong, and the evidence for each.
 
 **Who this is for:** Power Apps / Dynamics 365 developers with some front-end experience who want to understand Code Apps without starting from scratch.
@@ -27,16 +28,32 @@ A learning journey through Power Apps Code Apps: Microsoft's way for pro-code de
 ```
 power-apps-code-apps-guide/
 ├── crm-sales-hub/              ← The demo Code App (setup in its README)
+│   ├── AGENTS.md               ← Rules for AI coding agents (CLAUDE.md imports it)
 │   └── src/
 │       ├── pages/              ← accounts, account-detail, dashboard
-│       ├── hooks/              ← useAppContext, useDebouncedValue
+│       ├── hooks/              ← useAppContext, useDebouncedValue, usePagedQuery
 │       ├── lib/dataverse.ts    ← unwrap, formattedValue, odataString
+│       ├── lib/paging.ts       ← fetchAllPages, fetchByIds
+│       ├── state/jobs.ts       ← background jobs that outlive the page
+│       ├── lib/deep-link.ts    ← shareable player links, replayed on launch
+│       ├── lib/version.ts      ← version + build date from package.json
 │       ├── generated/          ← Generated models & services (do not edit)
 │       └── router.tsx
 ├── learnings/
 │   ├── chapter-1-paradigm.md
 │   ├── ...
-│   └── chapter-6-alm.md
+│   ├── chapter-6-alm.md
+│   ├── chapter-7-data-at-scale.md
+│   ├── chapter-8-flows-and-connectors.md
+│   ├── chapter-9-shipping.md
+│   ├── chapter-10-canvas-to-code.md
+│   └── chapter-11-ai-coding-agent.md
+├── tools/
+│   ├── measure-canvas-app.mjs  ← Canvas App → migration inventory
+│   └── sample-canvas-app/      ← A made-up Canvas App to try it on
+├── templates/
+│   ├── migration/              ← Screen spec, tracker, differences log
+│   └── agent/AGENTS.md         ← Agent rules template for a migration project
 ├── docs/
 │   └── v2-audit.md             ← What changed between Feb and Sep 2026
 └── README.md                   ← You are here
@@ -84,17 +101,17 @@ At GA every end user needed Power Apps **Premium**. Today an App Pass, pay-as-yo
 | 5 | [Dashboard & Data Visualization](learnings/chapter-5-dashboard.md) | KPI cards + recharts bar charts | *Building CRM Dashboards That Canvas App Can't: Data Visualization in Power Apps Code Apps* |
 | 6 | [Context, ALM & Production Readiness](learnings/chapter-6-alm.md) | User in header, solutions, pipelines | *Shipping a Power Apps Code App to Production: Context, ALM, Solutions, and Pipelines* |
 
-### Part 2: Production (in progress)
+### Part 2: Production (new, September 2026)
 
 Lessons from shipping a production Code App that replaced a large Canvas App, rewritten against this repo's demo tables.
 
 | # | Chapter | Covers |
 |---|---|---|
-| 7 | Data at Scale | Server-side paging with `skipToken`, total counts, fetching complete lists, joins without `$expand` |
-| 8 | Flows and Connectors | Calling Power Automate flows, UI for long-running jobs, Dataverse custom APIs |
-| 9 | Shipping for Real | App versioning, stale-bundle detection, deep links, environment banners, tester onboarding |
-| 10 | Canvas → Code Migration | Measuring a Canvas App, mapping Power Fx to TypeScript, merging duplicate screens, tracking parity |
-| 11 | Building with an AI Coding Agent | Project rules, specs before code, reviewing generated code |
+| 7 | [Data at Scale](learnings/chapter-7-data-at-scale.md) | Server-side paging with `skipToken`, total counts, fetching complete lists, joins without `$expand` |
+| 8 | [Flows and Connectors](learnings/chapter-8-flows-and-connectors.md) | Calling Power Automate flows, UI for long-running jobs, Dataverse custom APIs |
+| 9 | [Shipping for Real](learnings/chapter-9-shipping.md) | App versioning, stale-bundle detection, deep links, environment banners, tester onboarding |
+| 10 | [Canvas → Code Migration](learnings/chapter-10-canvas-to-code.md) | Measuring a Canvas App, mapping Power Fx to TypeScript, merging duplicate screens, tracking parity |
+| 11 | [Building with an AI Coding Agent](learnings/chapter-11-ai-coding-agent.md) | Project rules, specs before code, reviewing generated code |
 
 ### Running the Demo App
 
@@ -138,7 +155,7 @@ npm run dev
 
 **8. Coerce numbers with `Number()`.** Generated models type choice and money columns as strings, but values arrive as numbers, so `statecode === "0"` is always false. Compare with `Number(x) === 0`.
 
-**9. `getAll` returns one page.** Without paging, you get the first page and the rest is silently dropped (`result.skipToken` tells you there's more). `top: 500` on a dashboard is a silent truncation. SDK 1.4 adds `count: true` (capped at 5,000). See [Chapter 5](learnings/chapter-5-dashboard.md).
+**9. `getAll` returns one page.** 500 rows by default (`maxPageSize` goes up to 5,000); the rest is silently dropped, and `result.skipToken` tells you there's more. Page with `skipToken` (Dataverse has no `$skip`), and never combine `top` with paging: `top` suppresses the `skipToken`. SDK 1.4 adds `count: true` (capped at 5,000). See [Chapter 7](learnings/chapter-7-data-at-scale.md).
 
 **10. Escape user input in filters.** OData strings use single quotes, so a search for *O'Brien* breaks `contains(name, '...')`. Double the quotes: `value.replace(/'/g, "''")`.
 
@@ -168,7 +185,7 @@ npm run dev
 
 ### CLI
 
-**21. Schema changed? `pa app refresh data-source`.** No more delete-and-re-add.
+**21. Schema changed? `pa app refresh data-source`, every time.** No more delete-and-re-add. Until you regenerate, a newly added column can simply come back empty. Review the generated diff before committing it. See [Chapter 10](learnings/chapter-10-canvas-to-code.md).
 
 **22. Connections can be created from the CLI now.** `pa connection create --connector <id>`.
 
@@ -176,9 +193,11 @@ npm run dev
 
 **24. `--table` takes the logical name**: singular and lowercase (`account`), not the entity set name.
 
-### Security
+### Security and architecture
 
-**25. Your compiled bundle is publicly downloadable. Keep secrets out of it.** Playing the app requires Entra sign-in, but the built JS is served from a public endpoint, like any SPA on a CDN. No API keys, passwords or sensitive logic in front-end code; data goes through connectors, which are authenticated and DLP-enforced. IP restrictions come from Entra Conditional Access, not storage SAS IP binding. From the [docs](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/system-limits-configuration): *"Don't store sensitive user or organizational data in the app."*
+**25. No direct HTTP.** `fetch`, `axios` and Microsoft Graph calls don't work at runtime in a Code App. External data goes through connectors, flows or Dataverse custom APIs; a service without a connector needs a custom connector or a flow. See [Chapter 8](learnings/chapter-8-flows-and-connectors.md).
+
+**26. Your compiled bundle is publicly downloadable. Keep secrets out of it.** Playing the app requires Entra sign-in, but the built JS is served from a public endpoint, like any SPA on a CDN. No API keys, passwords or sensitive logic in front-end code; data goes through connectors, which are authenticated and DLP-enforced. IP restrictions come from Entra Conditional Access, not storage SAS IP binding. From the [docs](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/system-limits-configuration): *"Don't store sensitive user or organizational data in the app."*
 
 ---
 
@@ -265,9 +284,9 @@ Seven months later, I'd add one thing I underrated: **a Code App is maintainable
 
 ### The AI Coding Agent Angle
 
-At GA I noticed how naturally Code Apps pairs with AI coding agents. After a real project, I'd put it more strongly: Power Fx and the canvas designer are hard for agents to work with; TypeScript and React are what they're best at. Microsoft leans into this too: the templates are described as optimized for coding agents, and the docs suggest using an agent to wire up generated services.
+At GA I noticed how naturally Code Apps pairs with AI coding agents. After a real project, I'd put it more strongly: Power Fx and the canvas designer are hard for agents to work with; TypeScript and React are what they're best at. Microsoft leans into this too: it now publishes a [code apps plugin](https://github.com/microsoft/power-platform-skills) for GitHub Copilot and Claude Code, and a quickstart that goes from a prompt to a deployed app.
 
-The caveat I learned the hard way: **an agent needs rules and review.** The client library is young, and an agent will confidently invent method names or "fix" generated files. Project rules ("never edit `generated/`", "check every call against the generated services", "always `select`") and a human reviewing every change made the difference. Part 2 covers this.
+The caveat I learned the hard way: **an agent needs rules and review.** The client library is young, and an agent will confidently invent method names or "fix" generated files. Project rules ("never edit `generated/`", "check every call against the generated services", "always `select`"), specs confirmed before code, and a human reviewing every change made the difference. [Chapter 11](learnings/chapter-11-ai-coding-agent.md) covers it, and the demo's [`AGENTS.md`](crm-sales-hub/AGENTS.md) is a working example.
 
 ### The Real Concerns
 

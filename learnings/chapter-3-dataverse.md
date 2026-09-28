@@ -183,7 +183,7 @@ statecode eq 0 and address1_country eq 'AU' logical and
 
 **Always use `select`.** Fetching every column of a Dataverse row is slow and wasteful.
 
-**`getAll` returns one page.** Without `top`, you get the first page of results (up to 5,000 rows), and if there are more, `result.skipToken` is set and the rest is silently left behind. For a search box showing 50 rows that's fine. For anything that must be complete, or anything with paging, see Chapter 7.
+**`getAll` returns one page.** The client library asks for **500 rows per page** unless you set `maxPageSize` (Dataverse allows up to 5,000). If there are more, `result.skipToken` is set and the rest is silently left behind. For a search box showing 50 rows that's fine. For anything that must be complete, or anything with paging, see Chapter 7.
 
 **What the Dataverse connector doesn't support** (per the docs, as of August 2026): FetchXML, alternate keys, polymorphic lookups, and creating or changing table definitions. There's also no `$expand`, so related data comes from separate queries (Chapter 4) or from display-label annotations.
 
@@ -261,7 +261,9 @@ export default function AccountsPage() {
 }
 ```
 
-The full file is in [`crm-sales-hub/src/pages/accounts.tsx`](../crm-sales-hub/src/pages/accounts.tsx). The parts worth explaining:
+> The finished demo in [`crm-sales-hub/src/pages/accounts.tsx`](../crm-sales-hub/src/pages/accounts.tsx) goes one step further: Chapter 7 replaces `top: 50` with real paging and a total count. The version above is the one to understand first.
+
+The parts worth explaining:
 
 **`unwrap(result, "Load accounts")`** turns a failed request into an error, so the `isError` message actually appears. Without it, that message is dead code.
 

@@ -111,7 +111,7 @@ The production app was built on the **previous** CLI (`npx power-apps` v0.12 + `
 | 3.3 | "Regenerated every time you add or remove a data source" | Update | Plus `pa app refresh data-source`. |
 | 3.4 | Option sets: `Number()` compare; map labels manually | **Wrong** (half) | Keep `Number()` if G5 holds. Replace manual label mapping with FormattedValue annotations (G6). |
 | 3.5 | Service returns `{ data }` | **Wrong** | Returns `IOperationResult`: `{ success, data, error, skipToken? }` **[S]**. Teach checking `success` and throwing. |
-| 3.6 | `getAll` options include `skip` | Update | Paging is by `skipToken` + `maxPageSize` **[P]**. Explain `top` vs `maxPageSize`, and that a bare `getAll` returns **only the first page** **[P]**. |
+| 3.6 | `getAll` options include `skip` | Update | Paging is by `skipToken` + `maxPageSize` **[P]**. Explain `top` vs `maxPageSize`, and that a bare `getAll` returns **only the first page** **[P]**. **[S]** The client library sends `maxPageSize` as a `Prefer: odata.maxpagesize` header, **defaulting to 500**. `skip` becomes `$skip`, which the Dataverse Web API doesn't support. (Ch 3 first said "up to 5,000"; corrected 2026-09-28.) |
 | 3.7 | Accounts page: `contains(name, '${search}')` | **Wrong** | OData injection / breaks on apostrophes ("O'Brien"). Escape `'` as `''` **[P]**. |
 | 3.8 | `useDeferredValue` "achieves the same result" as debounce | **Wrong** | It defers rendering, not requests. Fast typing still fires a query per settled keystroke. Use a real debounce. |
 | 3.9 | `result.data ?? []` in `queryFn` | **Wrong** | Headline #4. |
@@ -248,6 +248,75 @@ Run these on SDK 1.4.0 + `pa` before writing the affected chapters. The demo app
 | `pa` CLI confirmed working: `@microsoft/power-apps-cli` 1.0.2 runs through `npx` with no global install; `pa app refresh data-source` without `--name` refreshes all | G11, G14 |
 
 Deliberately **not** changed yet (waiting on live verification): the polymorphic bind and `as any` on create (G8/G9), option-set label mapping vs FormattedValue (G6), the browser router (3.10), and the dashboard's `top: 500` (moves to Ch 7 with `fetchAllPages`/`count`).
+
+## Chapter 7 log (2026-09-28)
+
+Written: [learnings/chapter-7-data-at-scale.md](../learnings/chapter-7-data-at-scale.md). Demo changes:
+
+| Change | Notes |
+|---|---|
+| `src/lib/paging.ts`: `ListOptions` (adds `count` for pre-1.4 generated types), `fetchAllPages` (5,000 per request, **throws** past `maxRows` instead of truncating), `fetchByIds` (de-duplicated, GUID-checked, 50 IDs per `or` filter, batches in parallel) | Checked with a throwaway script against a fake cursor-paging `getAll`: 12,345 rows in 3 requests; the cap throws; 120 IDs (+ duplicates and junk) → 3 batched requests; `success: false` surfaces as an error. Not run against Dataverse. |
+| `src/hooks/usePagedQuery.ts`: token stack, render-time reset on filter change, `keepPreviousData`, `count: true` with a 5,000 cap flag | |
+| `src/components/pager.tsx` | "1-25 of 1,204 accounts", "5,000+" at the cap |
+| Accounts page: `top: 50` → 25 per page with total; `orderBy` ends with `accountid` | |
+| Dashboard: `top: 500` → `fetchAllPages`; new "Top Open Deals" table (account name from FormattedValue, city from `fetchByIds`) | `src/pages/dashboard-top-deals.tsx` |
+
+Taught in prose only (not in the demo): counting past 5,000 with an ID-only walk, the chunked cursor seek for page-number jumps, and `useInfiniteQuery` pickers.
+
+Unverified against a live environment: that `@odata.count` comes back alongside `odata.maxpagesize` paging on every page (the SDK passes it through when present), and that Dataverse keeps `skipToken` paging stable with a primary-key tiebreaker in `orderBy` (standard Web API behaviour).
+
+## Chapter 8 log (2026-09-28)
+
+Written: [learnings/chapter-8-flows-and-connectors.md](../learnings/chapter-8-flows-and-connectors.md).
+
+**Sources checked [D]:** [Add Power Automate flows](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/add-flows) (Aug 2026: only solution-aware instant flows with the Power Apps trigger; `@microsoft/power-apps` ≥ 1.1.1; re-run `add flow` after changes; end users need the App Opener role or equivalent), [Add a Dataverse action or function](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/add-dataverse-action-function), and the [asynchronous flow pattern](https://learn.microsoft.com/en-us/power-automate/guidance/coding-guidelines/asychronous-flow-pattern) (120-second response limit).
+
+**Lessons from the production app [P], generalised:** positional flow inputs (`text` … `text_14`); `success: true` vs the flow's own outcome, and the bug where an unparseable response took the success path; idempotent retry; status and error in one write, with the error-recording write unable to mask the original error; optional-inputs-first contract changes; a job store at the app root so flow calls outlive the page; the two old-CLI gotchas (alias mismatch, `workflowDetails`), presented as "may be fixed in `pa`".
+
+**Demo changes:** `src/state/jobs.ts` (Zustand job store: one run per key, running jobs can't be dismissed, errors captured), `src/components/job-toasts.tsx` (one sonner toast per job, updated in place; errors persist until dismissed), `src/lib/csv.ts`, `src/lib/export-opportunities.ts`, and an **Export CSV** button on the dashboard. No flow is in the demo: generating a flow service needs a live environment, and hand-writing a "generated" file would be fake. Flow code in the chapter uses a clearly named stand-in (`CloseDealFlowService`).
+
+**Checked:** build and lint pass; a throwaway script exercised the job store (single run per key, dismiss rules, success and error messages, re-run after finish) and CSV escaping. Not run in the Power Apps player; `WhoAmI`/`WinOpportunity` via `pa app add dataverse-api` are taken from the docs, not tried.
+
+## Chapter 9 log (2026-09-28)
+
+Written: [learnings/chapter-9-shipping.md](../learnings/chapter-9-shipping.md).
+
+**Lessons from the production app [P], generalised:** version and build date injected from `package.json` with Vite `define`; date-based release tags; the player's own "new version" notice gets missed, and a plain reload can re-serve the cached bundle (hard refresh works); a required-version environment variable gate, re-checked on an interval and on focus, softened to a banner while edits are unsaved; an environment banner driven by an environment variable; deep links as player URLs with a `route` query parameter read from `getContext().app.queryParams` (the iframe's `location.href` isn't shareable and the player drops the hash); a Clipboard API fallback inside the iframe; the tester onboarding and troubleshooting lists.
+
+**Corrected while writing:** the production gate compared versions with "not equal". The chapter uses a part-by-part "older than" comparison instead, because "not equal" blocks every new build whose release didn't also bump the variable.
+
+**Demo changes:** `package.json` version set to `1.0.0`; `vite.config.ts` defines `__APP_VERSION__` / `__BUILD_DATE__`; `src/lib/version.ts` (shown in the header with the build time as a tooltip); `src/lib/context.ts` (`getContextWithTimeout`, now shared by `useAppContext` and deep links; Ch 6 snippet updated); `src/lib/deep-link.ts` (`buildShareUrl`, `getLaunchRoute` with route validation, `copyText` with fallback); `src/components/deep-link-bootstrap.tsx` (in the layout); `src/components/copy-link-button.tsx` (on the account page).
+
+**Chapter code only (needs environment-variable tables from a live environment):** the required-version gate and the environment banner.
+
+**Checked:** build and lint pass; the built bundle contains the version string from `package.json`. Not run in the player: the `/play/e/<env>/app/<app>` URL shape is the one the production app shipped and the CLI printed (Microsoft's header docs show `/a/<app>`); query-parameter forwarding and the clipboard fallback are from production, not re-tested here.
+
+## Chapter 10 log (2026-09-28)
+
+Written: [learnings/chapter-10-canvas-to-code.md](../learnings/chapter-10-canvas-to-code.md).
+
+**Lessons from the production app [P], generalised:** no converter (keep schema, flows, rules); the migration drivers and the "team must own React" caveat; pin the Canvas export and track reference versions; measure first; spike the unknowns (the written plan's paging hook set `top` with `maxPageSize` and could never reach page 2); the Power Fx → code mapping; merging near-duplicate screens into one parameterised component; small screens first, core screen last in slices; the spec → confirm → build → parity → tests → commit loop; "awaiting live parity" as the dominant status; the differences log (100+ rows), including a Canvas bug found in translation; logic Canvas hid (status updates after a flow); mirror layout and colours, upgrade controls; regenerate after schema changes and review generated diffs; gradual cutover on shared Dataverse.
+
+**Softened for confidentiality:** exact screen counts, YAML line counts, region count and the new screen's subject are replaced with general descriptions.
+
+**New in the repo:**
+- `tools/measure-canvas-app.mjs`: Node, no dependencies. Inventory of screens, controls, Power Fx functions (with replacements), flow calls, data sources, and near-duplicate screens; `--diff` compares two screens with each file's control names replaced by a placeholder. Checked on the production app's real export, unpacked only in the session scratchpad (never copied into the repo): the Dataverse table count matched the app's own hand-made inventory, the copied screen pair scored 85%, a small false positive at 68% was excluded by the 70% threshold, and `--diff` cut a ~2,600-line plain diff to ~500 lines.
+- `tools/sample-canvas-app/`: a made-up CRM Canvas App (3 screens, 1 component) with a deliberately copied pair that differs by region and by one drifted manager check. The tool finds the pair at 91%, and `--diff` shows both the parameter and the drift.
+- `templates/migration/`: `SCREEN_SPEC.md`, `MIGRATION_TRACKER.md`, `DIFFERENCES.md`.
+
+**Unverified:** why a newly added column came back empty before regeneration. SDK 1.4.0's client code doesn't filter `select` against the schema, so the cause was elsewhere (the host, or 1.2.x). The chapter states the observation and the safe rule, not a mechanism.
+
+## Chapter 11 log (2026-09-28)
+
+Written: [learnings/chapter-11-ai-coding-agent.md](../learnings/chapter-11-ai-coding-agent.md). **Part 2 is complete.**
+
+**Sources checked [D]:** [Quickstart: build a code app with GitHub Copilot](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/quickstart-github-copilot) (Jun 2026: `/plugin marketplace add microsoft/power-platform-skills`, `/plugin install code-apps-preview@power-platform-skills`; also works with Claude Code) and the plugin's [`AGENTS.md`](https://github.com/microsoft/power-platform-skills/blob/main/plugins/code-apps/AGENTS.md), which states that direct HTTP (`fetch`, `axios`, Graph) doesn't work at runtime and all external data must go through connectors. That rule was missing from the guide; it's now in Ch 8, Ch 11, the README (gotcha 25) and the demo's `AGENTS.md`.
+
+**Lessons from the production app [P], generalised:** rules that came from agent mistakes (invented SDK methods, edits to generated files, unbounded queries, bare-default UI, UI text conventions); the "isn't stored anywhere" error from treating `src/generated/` as the schema, fixed by one data-source add; a stale rule in the rules file (delete-and-re-add after refresh-in-place worked); specs before code with open questions; humans own sign-ins, environments and deploys; platform plans written into `docs/specs/` with the human's and agent's steps separated; review focus (error paths vs comments, lying types, queries in loops, silent limits, unescaped filters, flow contracts); continuity in repo documents over agent memory; review and parity as the bottleneck.
+
+**Softened:** the rules table no longer claims every rule followed a real incident; some were anticipated.
+
+**New in the repo:** `crm-sales-hub/AGENTS.md` (rules for this demo) with `crm-sales-hub/CLAUDE.md` importing it (`@AGENTS.md`); `templates/agent/AGENTS.md` (a template for migration projects: status, sources of truth, hard rules, who does what, the per-screen loop, definition of done).
 
 ## Sources
 

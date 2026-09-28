@@ -1,0 +1,11 @@
+{
+  "DataSources": [
+    { "Type": "NativeCDSDataSourceInfo", "Name": "Accounts" },
+    { "Type": "NativeCDSDataSourceInfo", "Name": "Opportunities" },
+    { "Type": "NativeCDSDataSourceInfo", "Name": "Users" },
+    { "Type": "NativeCDSDataSourceInfo", "Name": "Managers" },
+    { "Type": "ServiceInfo", "Name": "CloseDealFlow" },
+    { "Type": "OptionSetInfo", "Name": "Status (Accounts)" },
+    { "Type": "OptionSetInfo", "Name": "Rating (Opportunities)" }
+  ]
+}

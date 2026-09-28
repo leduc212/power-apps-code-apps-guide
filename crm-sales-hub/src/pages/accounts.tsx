@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
 import { AccountsService } from "@/generated/services/AccountsService"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
-import { odataString, unwrap } from "@/lib/dataverse"
+import { usePagedQuery } from "@/hooks/usePagedQuery"
+import { odataString } from "@/lib/dataverse"
+import { Pager } from "@/components/pager"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,18 +15,13 @@ export default function AccountsPage() {
   const [search, setSearch] = useState("")
   const debouncedSearch = useDebouncedValue(search.trim())
 
-  const { data: accounts = [], isLoading, isError } = useQuery({
-    queryKey: ["accounts", debouncedSearch],
-    queryFn: async () => {
-      const result = await AccountsService.getAll({
-        select: ["name", "accountnumber", "address1_city", "telephone1", "statecode"],
-        filter: debouncedSearch ? `contains(name, ${odataString(debouncedSearch)})` : undefined,
-        orderBy: ["name asc"],
-        top: 50,
-      })
-      return unwrap(result, "Load accounts")
-    },
+  const page = usePagedQuery("accounts", AccountsService.getAll, {
+    select: ["name", "accountnumber", "address1_city", "telephone1", "statecode"],
+    filter: debouncedSearch ? `contains(name, ${odataString(debouncedSearch)})` : undefined,
+    orderBy: ["name asc", "accountid asc"],
+    pageSize: 25,
   })
+  const accounts = page.rows
 
   return (
     <div className="p-6 space-y-4">
@@ -38,8 +34,8 @@ export default function AccountsPage() {
         className="max-w-sm"
       />
 
-      {isError && (
-        <p className="text-sm text-destructive">Failed to load accounts. Check your Dataverse connection.</p>
+      {page.error && (
+        <p className="text-sm text-destructive">Failed to load accounts: {page.error.message}</p>
       )}
 
       <Table>
@@ -53,7 +49,7 @@ export default function AccountsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {isLoading ? (
+          {page.isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <TableRow key={i}>
                 {Array.from({ length: 5 }).map((_, j) => (
@@ -78,6 +74,19 @@ export default function AccountsPage() {
           )}
         </TableBody>
       </Table>
+
+      <Pager
+        pageIndex={page.pageIndex}
+        pageSize={page.pageSize}
+        rowsOnPage={accounts.length}
+        totalCount={page.totalCount}
+        countCapped={page.countCapped}
+        hasPrev={page.hasPrev}
+        hasNext={page.hasNext}
+        onPrev={page.prev}
+        onNext={page.next}
+        noun="accounts"
+      />
     </div>
   )
 }

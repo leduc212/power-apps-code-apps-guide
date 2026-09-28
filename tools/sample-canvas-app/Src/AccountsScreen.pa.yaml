@@ -1,0 +1,48 @@
+Screens:
+  AccountsScreen:
+    Properties:
+      OnVisible: |-
+        =UpdateContext({locLoading: true});
+        ClearCollect(colAccounts, FirstN(Sort(Filter(Accounts, Status = 'Status (Accounts)'.Active), 'Account Name'), 500));
+        UpdateContext({locLoading: false})
+    Children:
+      - cmpHeader_1:
+          Control: CanvasComponent
+      - txtSearch:
+          Control: Classic/TextInput@2.3.2
+          Properties:
+            HintText: ="Search by name..."
+            DelayOutput: =true
+      - galAccounts:
+          Control: Gallery@2.15.0
+          Variant: Vertical
+          Properties:
+            Items: =Search(colAccounts, txtSearch.Text, 'Account Name')
+          Children:
+            - lblAccountName:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =ThisItem.'Account Name'
+            - lblCity:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =ThisItem.'Address 1: City'
+            - lblOwner:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =LookUp(Users, User = ThisItem.Owner.User).'Full Name'
+            - icoOpen:
+                Control: Classic/Icon@2.5.0
+                Properties:
+                  Icon: =Icon.ChevronRight
+                  OnSelect: |-
+                    =Set(gblSelectedAccount, ThisItem);
+                    Navigate(If(ThisItem.'Address 1: Country/Region' = "North", OpportunitiesNorth, OpportunitiesSouth))
+      - lblCount:
+          Control: Label@2.5.1
+          Properties:
+            Text: =CountRows(galAccounts.AllItems) & " accounts"
+      - spnLoading:
+          Control: Classic/Icon@2.5.0
+          Properties:
+            Visible: =locLoading

@@ -60,27 +60,32 @@ Every `user` field is optional, and the two new `app` fields are only there when
 `getContext()` returns a promise that resolves when the Power Apps host answers. **If there is no host, it never resolves.** Open the app on plain `localhost`, or embed it somewhere unexpected, and anything waiting on context waits forever. So give it a deadline:
 
 ```typescript
-// src/hooks/useAppContext.ts
-import { useQuery } from "@tanstack/react-query"
-import { getContext } from "@microsoft/power-apps/app"
+// src/lib/context.ts
+import { getContext, type IContext } from "@microsoft/power-apps/app"
 
 /** getContext() waits on the Power Apps host; outside the player it never resolves. */
 const CONTEXT_TIMEOUT_MS = 3000
 
+export function getContextWithTimeout(ms = CONTEXT_TIMEOUT_MS): Promise<IContext> {
+  return Promise.race([
+    getContext(),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("getContext timed out")), ms)),
+  ])
+}
+```
+
+```typescript
+// src/hooks/useAppContext.ts
 export function useAppContext() {
   return useQuery({
     queryKey: ["app-context"],
-    queryFn: () =>
-      Promise.race([
-        getContext(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("getContext timed out")), CONTEXT_TIMEOUT_MS)
-        ),
-      ]),
+    queryFn: () => getContextWithTimeout(),
     staleTime: Infinity, // context is stable for the lifetime of a session
   })
 }
 ```
+
+The helper is separate from the hook because non-React code needs context too (Chapter 9's deep links).
 
 `staleTime: Infinity` because context doesn't change during a session. The timeout turns "hangs forever" into an ordinary query error that the UI can ignore or report.
 
@@ -279,3 +284,4 @@ The full source is in [`crm-sales-hub/`](../crm-sales-hub/).
 ---
 
 *Previous: Chapter 5 - Dashboard & Data Visualization*
+*Next: Chapter 7 - Data at Scale*

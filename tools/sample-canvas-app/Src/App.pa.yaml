@@ -1,0 +1,7 @@
+# A small, made-up Canvas App for trying tools/measure-canvas-app.mjs.
+App:
+  Properties:
+    OnStart: |-
+      =Set(gblUser, User());
+      Set(gblIsManager, !IsBlank(LookUp(Managers, Email = gblUser.Email)));
+      ClearCollect(colStages, ["Qualify", "Develop", "Propose", "Close"])

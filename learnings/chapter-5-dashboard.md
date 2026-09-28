@@ -78,6 +78,8 @@ Separate queries for open, won and lost would be three round trips for rows from
 
 ### The `top: 500` Limit (and Why It's a Shortcut)
 
+> The finished demo already uses the fix from Chapter 7 (`fetchAllPages`). The `top: 500` version is shown here because the reason it's wrong is the lesson.
+
 `top: 500` means **at most 500 rows**. If you have more, the rest are silently left out and every KPI on the page is wrong without any sign of it. That's acceptable for a demo on a trial environment. It isn't acceptable in production.
 
 The fixes, all covered in Chapter 7:

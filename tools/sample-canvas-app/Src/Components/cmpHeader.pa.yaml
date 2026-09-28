@@ -1,0 +1,14 @@
+ComponentDefinitions:
+  cmpHeader:
+    DefinitionType: CanvasComponent
+    Properties:
+      Height: =56
+    Children:
+      - lblAppTitle:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="CRM Sales Hub"
+      - lblUserName:
+          Control: Label@2.5.1
+          Properties:
+            Text: =gblUser.FullName

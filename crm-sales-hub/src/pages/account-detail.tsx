@@ -6,6 +6,7 @@ import { AccountsService } from "@/generated/services/AccountsService"
 import { OpportunitiesService } from "@/generated/services/OpportunitiesService"
 import { ContactsService } from "@/generated/services/ContactsService"
 import { formattedValue, unwrap } from "@/lib/dataverse"
+import { CopyLinkButton } from "@/components/copy-link-button"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -122,7 +123,10 @@ export default function AccountDetailPage() {
         <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate("/accounts")}>
           ← Accounts
         </Button>
-        <h1 className="text-2xl font-semibold">{account.name}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold">{account.name}</h1>
+          <CopyLinkButton />
+        </div>
         <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
           {account.accountnumber && <span>#{account.accountnumber}</span>}
           {account.address1_city && <span>{account.address1_city}</span>}

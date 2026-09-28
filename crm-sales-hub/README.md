@@ -55,6 +55,14 @@ pa app push
 
 Add `--solution-id <id>` to push into a solution (find the ID with `pa solution list`).
 
+To release a new version, bump it first. The header shows it, taken from `package.json` at build time:
+
+```bash
+npm version patch --no-git-tag-version
+npm run build
+pa app push
+```
+
 ## After a schema change
 
 ```bash
@@ -69,3 +77,6 @@ Never hand-edit `src/generated/`; it is overwritten on refresh.
 - **User input in an OData filter goes through `odataString()`**, which quotes the value and doubles any `'`.
 - **Search is debounced** (`useDebouncedValue`), so typing does not send a request per keystroke.
 - **Every query sets `select`.**
+- **Lists page on the server** with `usePagedQuery` (`maxPageSize` + `skipToken`, never `top`). Totals come from `fetchAllPages`, and related records from one batched `fetchByIds` query instead of one query per row. See [Chapter 7](../learnings/chapter-7-data-at-scale.md).
+- **Long-running work runs as a job** (`useJobs` in `src/state/jobs.ts`), not inside the component that started it, so it finishes and reports back even after the user navigates away. The dashboard's **Export CSV** is the example. See [Chapter 8](../learnings/chapter-8-flows-and-connectors.md).
+- **Links to records are player URLs** with the route in a `route` query parameter (`src/lib/deep-link.ts`), replayed on launch. `window.location.href` isn't shareable inside the player. See [Chapter 9](../learnings/chapter-9-shipping.md).

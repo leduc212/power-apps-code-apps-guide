@@ -1,0 +1,69 @@
+Screens:
+  OpportunitiesNorth:
+    Properties:
+      OnVisible: |-
+        =UpdateContext({locLoading: true});
+        ClearCollect(
+            colOpps,
+            Filter(Opportunities, 'Account' = gblSelectedAccount.Account && Region = "North")
+        );
+        UpdateContext({locLoading: false, locSelected: Blank()})
+    Children:
+      - cmpHeader_2:
+          Control: CanvasComponent
+      - lblTitle:
+          Control: Label@2.5.1
+          Properties:
+            Text: =gblSelectedAccount.'Account Name' & " - Opportunities (North)"
+      - galOpps:
+          Control: Gallery@2.15.0
+          Variant: Vertical
+          Properties:
+            Items: =Sort(colOpps, 'Est. Close Date', SortOrder.Ascending)
+            OnSelect: =UpdateContext({locSelected: ThisItem})
+          Children:
+            - lblOppName:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =ThisItem.Topic
+            - lblOppValue:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =Text(ThisItem.'Est. Revenue', "$#,##0")
+            - lblOppRating:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =Switch(ThisItem.Rating, 'Rating (Opportunities)'.Hot, "Hot", 'Rating (Opportunities)'.Warm, "Warm", "Cold")
+      - btnWin:
+          Control: Button@0.0.45
+          Properties:
+            Text: ="Close as won"
+            DisplayMode: =If(IsBlank(locSelected) || !gblIsManager, DisplayMode.Disabled, DisplayMode.Edit)
+            OnSelect: |-
+              =UpdateContext({locLoading: true});
+              Set(varResult, CloseDealFlow.Run(locSelected.Opportunity, "Won"));
+              If(
+                  varResult.status = "ok",
+                  Patch(Opportunities, locSelected, {'Sync Status': "Closed"});
+                  Notify("Closed in ERP: " & varResult.reference, NotificationType.Success),
+                  Notify(varResult.message, NotificationType.Error)
+              );
+              Refresh(Opportunities);
+              UpdateContext({locLoading: false})
+      - btnDelete:
+          Control: Button@0.0.45
+          Properties:
+            Text: ="Delete"
+            DisplayMode: =If(IsBlank(locSelected), DisplayMode.Disabled, DisplayMode.Edit)
+            OnSelect: |-
+              =Remove(Opportunities, locSelected);
+              ClearCollect(colOpps, Filter(Opportunities, 'Account' = gblSelectedAccount.Account && Region = "North"))
+      - btnBack:
+          Control: Classic/Button@2.2.0
+          Properties:
+            Text: ="Back"
+            OnSelect: =Navigate(AccountsScreen)
+      - spnLoading_1:
+          Control: Classic/Icon@2.5.0
+          Properties:
+            Visible: =locLoading

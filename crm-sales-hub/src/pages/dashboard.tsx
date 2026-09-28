@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
 import { OpportunitiesService } from "@/generated/services/OpportunitiesService"
-import { unwrap } from "@/lib/dataverse"
+import { fetchAllPages } from "@/lib/paging"
+import { TopDeals } from "@/pages/dashboard-top-deals"
+import { useIsJobRunning, useJobs } from "@/state/jobs"
+import { EXPORT_OPPORTUNITIES_JOB, exportOpportunities } from "@/lib/export-opportunities"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -32,15 +35,19 @@ function KpiCard({ label, value, sub }: { label: string; value: string; sub: str
 }
 
 export default function DashboardPage() {
+  const startJob = useJobs((s) => s.start)
+  const exporting = useIsJobRunning(EXPORT_OPPORTUNITIES_JOB)
+
+  // Every opportunity, not the first page: the KPIs are totals, so a partial
+  // result would be wrong without looking wrong.
   const { data: opportunities = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dashboard-opportunities"],
-    queryFn: async () => {
-      const result = await OpportunitiesService.getAll({
-        select: ["name", "statecode", "estimatedvalue", "opportunityratingcode", "salesstage"],
-        top: 500,
-      })
-      return unwrap(result, "Load opportunities")
-    },
+    queryFn: () =>
+      fetchAllPages(
+        OpportunitiesService.getAll,
+        { select: ["opportunityid", "name", "statecode", "estimatedvalue", "opportunityratingcode", "salesstage", "_parentaccountid_value"] },
+        "Load opportunities",
+      ),
   })
 
   const open = opportunities.filter(o => Number(o.statecode) === 0)
@@ -105,9 +112,19 @@ export default function DashboardPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
-          {isFetching ? "Refreshing..." : "Refresh"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={exporting}
+            onClick={() => startJob(EXPORT_OPPORTUNITIES_JOB, "Export opportunities", exportOpportunities)}
+          >
+            {exporting ? "Exporting..." : "Export CSV"}
+          </Button>
+          <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
+            {isFetching ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
       </div>
 
       {/* KPI cards */}
@@ -165,6 +182,8 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      <TopDeals open={open} />
     </div>
   )
 }
